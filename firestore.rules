@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ⚠️ TEMPORARY TEST RULES - ALLOWS SIGNUP TO WORK ⚠️
+    // Users can create their own document during signup
+    // After creation, only authenticated users can access their own data
+    
+    match /users/{userId} {
+      // Allow user creation during signup (when auth is being created)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow users to read/write only their own document
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

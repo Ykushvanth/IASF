@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "863978031528",
+    "project_id": "learnco-ffe77",
+    "storage_bucket": "learnco-ffe77.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:863978031528:android:e010397c0e9486689c759d",
+        "android_client_info": {
+          "package_name": "com.example.eduai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNXkZC4YIA0KXpFx_vL4MfgpPKmB-Usz4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:863978031528:android:2c20782f5c5871ac9c759d",
+        "android_client_info": {
+          "package_name": "com.example.learnco"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNXkZC4YIA0KXpFx_vL4MfgpPKmB-Usz4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
