@@ -58,10 +58,14 @@ class RoadmapBackend {
       if (!forceRegenerate && existingRoadmap != null && existingRoadmap.isNotEmpty) {
         print('ℹ️ Roadmap already exists with ${existingRoadmap.length} items');
         print('💡 To regenerate, use forceRegenerate = true');
+        // Convert existing roadmap to proper format and return as success
+        final roadmapList = (existingRoadmap as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
         return {
-          'success': false,
-          'message': 'Roadmap already exists. Use regenerate option to create a new one.',
-          'existingRoadmap': existingRoadmap,
+          'success': true,
+          'message': 'Roadmap loaded from existing data.',
+          'roadmap': roadmapList,
         };
       }
       
