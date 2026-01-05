@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:eduai/screens/video.dart';
+import 'package:eduai/screens/topic_learning_screen.dart';
 
 class RoadmapScreen extends StatefulWidget {
   final String courseName;
@@ -16,7 +16,6 @@ class RoadmapScreen extends StatefulWidget {
 }
 
 class _RoadmapScreenState extends State<RoadmapScreen> {
-  int? _expandedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -150,17 +149,37 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     final completed = widget.roadmap.where((t) => t['completed'] == true).length;
     final total = widget.roadmap.length;
     final progress = total > 0 ? completed / total : 0.0;
+    
+    // Calculate average test score
+    final completedTopics = widget.roadmap.where((t) => t['completed'] == true && t['testScore'] != null).toList();
+    final averageScore = completedTopics.isNotEmpty
+        ? (completedTopics.map((t) => t['testScore'] as int).reduce((a, b) => a + b) / completedTopics.length).round()
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Progress: $completed/$total topics',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Progress: $completed/$total topics',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (averageScore != null)
+              Text(
+                'Avg Score: $averageScore%',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         ClipRRect(
@@ -237,7 +256,8 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     final difficulty = day['difficulty'] ?? 'medium';
     final whyNow = day['whyNow'] ?? '';
     final videos = (day['videos'] as List?) ?? [];
-    final isExpanded = _expandedIndex == dayNumber;
+    final completed = day['completed'] == true;
+    final testScore = day['testScore'] as int?;
     print('🎬 Day $dayNumber has ${videos.length} videos');
 
     return Card(
@@ -246,24 +266,35 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () {
-              setState(() {
-                _expandedIndex = isExpanded ? null : dayNumber;
-              });
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
+      child: InkWell(
+        onTap: () {
+          // Navigate to topic learning screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TopicLearningScreen(
+                courseName: widget.courseName,
+                topicName: topic,
+                difficulty: difficulty,
+                videos: videos.cast<Map<String, dynamic>>(),
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Stack(
                 children: [
                   Container(
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: _getDifficultyColor(difficulty).withOpacity(0.2),
+                      color: completed
+                          ? Colors.green.withOpacity(0.2)
+                          : _getDifficultyColor(difficulty).withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
@@ -273,7 +304,9 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                           Text(
                             'Day',
                             style: TextStyle(
-                              color: _getDifficultyColor(difficulty),
+                              color: completed
+                                  ? Colors.green
+                                  : _getDifficultyColor(difficulty),
                               fontWeight: FontWeight.w600,
                               fontSize: 10,
                             ),
@@ -281,7 +314,9 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                           Text(
                             '$dayNumber',
                             style: TextStyle(
-                              color: _getDifficultyColor(difficulty),
+                              color: completed
+                                  ? Colors.green
+                                  : _getDifficultyColor(difficulty),
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
                             ),
@@ -290,43 +325,62 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          topic,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1E293B),
-                          ),
+                  if (completed)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
                         ),
-                        if (whyNow.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 14,
-                                color: const Color(0xFF6366F1),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      topic,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    if (whyNow.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.arrow_forward,
+                            size: 14,
+                            color: const Color(0xFF6366F1),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              whyNow,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6366F1),
+                                fontStyle: FontStyle.italic,
                               ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  whyNow,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF6366F1),
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ],
+                      ),
+                    ],
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -346,442 +400,93 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                                 fontStyle: videos.isEmpty ? FontStyle.italic : FontStyle.normal,
                               ),
                             ),
-                          ],
-                        ),
-                        // Show recommended channels if available
-                        if (day['recommendedChannels'] != null && 
-                            (day['recommendedChannels'] as List).isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 4,
-                            runSpacing: 4,
-                            children: (day['recommendedChannels'] as List).take(3).map((channel) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            if (completed) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF6366F1).withOpacity(0.1),
+                                  color: Colors.green.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: const Color(0xFF6366F1).withOpacity(0.3),
+                                    color: Colors.green.withOpacity(0.3),
                                   ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Icon(
-                                      Icons.play_circle,
+                                      Icons.check_circle,
                                       size: 12,
-                                      color: Color(0xFF6366F1),
+                                      color: Colors.green,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      channel.toString(),
+                                      testScore != null ? 'Test: $testScore%' : 'Completed',
                                       style: const TextStyle(
                                         fontSize: 10,
-                                        color: Color(0xFF6366F1),
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green,
                                       ),
                                     ),
                                   ],
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: const Color(0xFF64748B),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Videos Section
-                  if (videos.isEmpty)
-                    const Text(
-                      'No videos available for this topic yet.',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 14,
-                      ),
-                    )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.play_circle,
-                              size: 18,
-                              color: const Color(0xFF6366F1),
+                              ),
+                            ],
+                          ],
+                        ),
+                    // Show recommended channels if available
+                    if (day['recommendedChannels'] != null && 
+                        (day['recommendedChannels'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: (day['recommendedChannels'] as List).take(3).map((channel) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: const Color(0xFF6366F1).withOpacity(0.3),
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Videos for: $topic',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.play_circle,
+                                  size: 12,
                                   color: Color(0xFF6366F1),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  channel.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF6366F1),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ...videos.map((video) {
-                          return _buildVideoCard(video, topic);
+                          );
                         }).toList(),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoCard(Map<String, dynamic> video, String topicName) {
-    return InkWell(
-      onTap: () => _openYouTubeVideo(
-        video['videoId'],
-        video['title'],
-        video['channelName'],
-      ),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF6366F1).withOpacity(0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF6366F1).withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Topic name header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withOpacity(0.1),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.school,
-                    size: 14,
-                    color: Color(0xFF6366F1),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      topicName,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF6366F1),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Video content
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      video['thumbnail'],
-                      width: 120,
-                      height: 68,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 120,
-                          height: 68,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.play_circle_outline),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          video['title'],
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          video['channelName'],
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildVideoStats(video),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVideoStats(Map<String, dynamic> video) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        // View count
-        if (video['viewCount'] != null) ...[
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.remove_red_eye,
-                size: 12,
-                color: Colors.grey[600],
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _formatNumber(video['viewCount']),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-        // Like count
-        if (video['likeCount'] != null) ...[
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.thumb_up,
-                size: 12,
-                color: Colors.grey[600],
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _formatNumber(video['likeCount']),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.play_circle_filled,
-              size: 14,
-              color: Colors.red[600],
-            ),
-            const SizedBox(width: 4),
-            const Text(
-              'Watch',
-              style: TextStyle(
-                fontSize: 11,
-                color: Color(0xFF6366F1),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOldVideoCard(Map<String, dynamic> video) {
-    return InkWell(
-      onTap: () => _openYouTubeVideo(
-        video['videoId'],
-        video['title'],
-        video['channelName'],
-      ),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(
-                video['thumbnail'],
-                width: 120,
-                height: 68,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 120,
-                    height: 68,
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.play_circle_outline),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    video['title'],
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    video['channelName'],
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      // View count
-                      if (video['viewCount'] != null) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.remove_red_eye,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatNumber(video['viewCount']),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      // Like count
-                      if (video['likeCount'] != null) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.thumb_up,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatNumber(video['likeCount']),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.play_circle_filled,
-                            size: 16,
-                            color: Colors.red[600],
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Watch',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6366F1),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: const Color(0xFF64748B),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -819,26 +524,4 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     }
   }
 
-  String _formatNumber(int number) {
-    if (number >= 1000000) {
-      return '${(number / 1000000).toStringAsFixed(1)}M';
-    } else if (number >= 1000) {
-      return '${(number / 1000).toStringAsFixed(1)}K';
-    }
-    return number.toString();
-  }
-
-  void _openYouTubeVideo(String videoId, String title, String channelName) {
-    // Open video in the app using VideoPlayerScreen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoPlayerScreen(
-          videoId: videoId,
-          videoTitle: title,
-          channelName: channelName,
-        ),
-      ),
-    );
-  }
 }

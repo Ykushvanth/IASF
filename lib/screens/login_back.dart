@@ -3,6 +3,7 @@ import 'package:eduai/models/login.dart';
 import 'package:eduai/screens/singup.dart';
 import 'package:eduai/screens/academic_context.dart';
 import 'package:eduai/screens/mindset_analysis.dart';
+import 'package:eduai/main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -59,9 +60,18 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
           } else {
-            // User setup is complete - authentication wrapper will handle navigation
-            // The StreamBuilder in AuthenticationWrapper will automatically navigate to HomeScreen
-            // Do nothing here, just let the auth state change trigger the navigation
+            // User setup is complete - pop LoginScreen so AuthenticationWrapper detects auth state
+            // The StreamBuilder in AuthenticationWrapper will automatically show HomeScreen
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              // If LoginScreen was pushed with pushReplacement, we need to clear and go to root
+              // AuthenticationWrapper will detect the logged-in user and show HomeScreen
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const AuthenticationWrapper()),
+                (route) => false,
+              );
+            }
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
