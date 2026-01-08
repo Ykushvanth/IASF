@@ -2,9 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LevelAssessmentBackend {
-  static const String groqApiKey = 'REDACTED';
+  static String get groqApiKey =>
+      dotenv.env['GROQ_API_KEY'] ?? 'API_KEY_NOT_SET';
   static const String groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
 
   /// Generate assessment questions based on selected topics and user's mindset profile

@@ -349,9 +349,11 @@ Edit `_initializeAssessment()` to change mix (currently 3 static + 7 AI)
 ### Groq AI Endpoint
 ```
 POST https://api.groq.com/openai/v1/chat/completions
-Authorization: Bearer REDACTED
+Authorization: Bearer ${GROQ_API_KEY}
 Model: llama-3.3-70b-versatile
 ```
+
+**Note:** Store your API key in `.env` file (see `.env.example`)
 
 ### Firebase Collections
 - `users/{userId}/onboarding/mindsetAnalysis`
