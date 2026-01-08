@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:eduai/screens/topic_learning_screen.dart';
+import 'package:eduai/models/roadmap_backend.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RoadmapScreen extends StatefulWidget {
   final String courseName;
@@ -16,11 +19,92 @@ class RoadmapScreen extends StatefulWidget {
 }
 
 class _RoadmapScreenState extends State<RoadmapScreen> {
+  bool _isGeneratingWeek = false;
+  List<Map<String, dynamic>> _roadmap = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _roadmap = widget.roadmap;
+  }
+
+  Future<void> _generateNextWeek() async {
+    setState(() => _isGeneratingWeek = true);
+    
+    try {
+      final result = await RoadmapBackend.generateNextWeek(
+        courseName: widget.courseName,
+      );
+      
+      if (result['success'] == true) {
+        // Reload roadmap from Firebase
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          
+          final updatedRoadmap = (userDoc.data()?['roadmap'] as List?)
+              ?.map((item) => Map<String, dynamic>.from(item as Map))
+              .toList() ?? [];
+          
+          setState(() {
+            _roadmap = updatedRoadmap;
+            _isGeneratingWeek = false;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message'] ?? 'Next week generated!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } else {
+        setState(() => _isGeneratingWeek = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to generate week'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isGeneratingWeek = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _canGenerateNextWeek() {
+    if (_roadmap.isEmpty) return false;
+    
+    // Get current week number
+    final weeks = _roadmap.map((item) => item['week'] ?? 1).toList();
+    final currentWeek = weeks.reduce((a, b) => a > b ? a : b);
+    
+    // Check if all days in current week are completed
+    final currentWeekDays = _roadmap.where((item) => item['week'] == currentWeek).toList();
+    final allCompleted = currentWeekDays.every((day) => day['completed'] == true);
+    
+    return allCompleted;
+  }
 
   @override
   Widget build(BuildContext context) {
     // Handle null or empty roadmap
-    if (widget.roadmap.isEmpty) {
+    if (_roadmap.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
@@ -55,9 +139,9 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     }
     
     // Group roadmap by weeks
-    print('📊 DEBUG: Total roadmap items: ${widget.roadmap.length}');
+    print('📊 DEBUG: Total roadmap items: ${_roadmap.length}');
     final Map<int, List<Map<String, dynamic>>> weekGroups = {};
-    for (var item in widget.roadmap) {
+    for (var item in _roadmap) {
       final week = item['week'] ?? 1;
       final day = item['day'] ?? 0;
       final videos = item['videos'] as List? ?? [];
@@ -69,6 +153,8 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     }
     print('📊 Total weeks grouped: ${weekGroups.length}');
     print('📊 Weeks: ${weekGroups.keys.toList()}');
+    
+    final canGenerateNext = _canGenerateNextWeek();
     
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -113,7 +199,7 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.roadmap.length} days of learning • ${weekGroups.length} weeks',
+                  '${_roadmap.length} days of learning • ${weekGroups.length} weeks',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -126,18 +212,99 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
           ),
           // Week-by-week list
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: weekGroups.length,
-              itemBuilder: (context, weekIndex) {
-                final sortedWeeks = weekGroups.keys.toList()..sort();
-                final weekNumber = sortedWeeks[weekIndex];
-                final weekDays = weekGroups[weekNumber]!;
-                final weekTheme = weekDays.isNotEmpty ? weekDays[0]['weekTheme'] ?? '' : '';
-                print('📋 Rendering Week $weekNumber with ${weekDays.length} days');
+              children: [
+                // Build all week sections
+                ...() {
+                  final sortedWeeks = weekGroups.keys.toList()..sort();
+                  return sortedWeeks.map((weekNumber) {
+                    final weekDays = weekGroups[weekNumber]!;
+                    final weekTheme = weekDays.isNotEmpty ? weekDays[0]['weekTheme'] ?? '' : '';
+                    print('📋 Rendering Week $weekNumber with ${weekDays.length} days');
+                    return _buildWeekSection(weekNumber, weekTheme, weekDays);
+                  }).toList();
+                }(),
                 
-                return _buildWeekSection(weekNumber, weekTheme, weekDays);
-              },
+                // Generate Next Week button
+                if (_isGeneratingWeek)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Generating next week...',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (canGenerateNext)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: ElevatedButton.icon(
+                        onPressed: _generateNextWeek,
+                        icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                        label: const Text(
+                          'Generate Next Week',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 3,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange[700]),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Complete all days in the current week to unlock the next week!',
+                              style: TextStyle(
+                                color: Colors.orange[900],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -146,12 +313,12 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
   }
 
   Widget _buildProgressBar() {
-    final completed = widget.roadmap.where((t) => t['completed'] == true).length;
-    final total = widget.roadmap.length;
+    final completed = _roadmap.where((t) => t['completed'] == true).length;
+    final total = _roadmap.length;
     final progress = total > 0 ? completed / total : 0.0;
     
     // Calculate average test score
-    final completedTopics = widget.roadmap.where((t) => t['completed'] == true && t['testScore'] != null).toList();
+    final completedTopics = _roadmap.where((t) => t['completed'] == true && t['testScore'] != null).toList();
     final averageScore = completedTopics.isNotEmpty
         ? (completedTopics.map((t) => t['testScore'] as int).reduce((a, b) => a + b) / completedTopics.length).round()
         : null;
@@ -196,6 +363,10 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
   }
 
   Widget _buildWeekSection(int weekNumber, String weekTheme, List<Map<String, dynamic>> days) {
+    final completedDays = days.where((day) => day['completed'] == true).length;
+    final totalDays = days.length;
+    final isCurrentWeek = weekNumber == (_roadmap.isNotEmpty ? _roadmap.last['week'] : 1);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -207,31 +378,98 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color(0xFF6366F1).withOpacity(0.1),
-                Color(0xFF8B5CF6).withOpacity(0.1),
+                Color(0xFF6366F1).withOpacity(isCurrentWeek ? 0.2 : 0.1),
+                Color(0xFF8B5CF6).withOpacity(isCurrentWeek ? 0.2 : 0.1),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: const Color(0xFF6366F1).withOpacity(0.3),
-              width: 1,
+              color: const Color(0xFF6366F1).withOpacity(isCurrentWeek ? 0.5 : 0.3),
+              width: isCurrentWeek ? 2 : 1,
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Week $weekNumber',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF6366F1),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Week $weekNumber',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
+                      if (isCurrentWeek) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'CURRENT',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: completedDays == totalDays
+                          ? Colors.green.withOpacity(0.2)
+                          : const Color(0xFF6366F1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: completedDays == totalDays
+                            ? Colors.green
+                            : const Color(0xFF6366F1),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          completedDays == totalDays
+                              ? Icons.check_circle
+                              : Icons.schedule,
+                          size: 14,
+                          color: completedDays == totalDays
+                              ? Colors.green
+                              : const Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$completedDays/$totalDays days',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: completedDays == totalDays
+                                ? Colors.green
+                                : const Color(0xFF6366F1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               if (weekTheme.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   weekTheme,
                   style: const TextStyle(

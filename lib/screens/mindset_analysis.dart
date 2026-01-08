@@ -14,26 +14,20 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
   int _currentPage = 0;
   bool _isLoading = false;
   final Map<String, dynamic> _answers = {};
-  final TextEditingController _q15Controller = TextEditingController();
+  final TextEditingController _openEndedController = TextEditingController();
+  
+  // Total number of questions (26 questions now)
+  final int _totalQuestions = 26;
 
   @override
   void dispose() {
     _pageController.dispose();
-    _q15Controller.dispose();
+    _openEndedController.dispose();
     super.dispose();
   }
 
   void _nextPage() {
-    if (_currentPage == 2) {
-      final q3Answer = _answers['q3'];
-      if (q3Answer != 'Often confused' && q3Answer != 'Completely confused') {
-        _answers.remove('q4');
-        _pageController.jumpToPage(4);
-        return;
-      }
-    }
-
-    if (_currentPage < 14) {
+    if (_currentPage < _totalQuestions - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -44,14 +38,6 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
   }
 
   void _previousPage() {
-    if (_currentPage == 4) {
-      final q3Answer = _answers['q3'];
-      if (q3Answer != 'Often confused' && q3Answer != 'Completely confused') {
-        _pageController.jumpToPage(2);
-        return;
-      }
-    }
-
     if (_currentPage > 0) {
       _pageController.previousPage(
         duration: const Duration(milliseconds: 300),
@@ -65,19 +51,16 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
     
     if (_isLoading) {
       print('⚠️ Already loading, returning');
-      return; // Prevent double submission
+      return;
     }
     
     setState(() => _isLoading = true);
     print('✅ Loading state set to true');
 
     try {
-      // Debug: Print answers to verify Q15 is captured
       print('📝 Submitting answers: ${_answers.keys.toList()}');
-      print('📝 Q15 answer: ${_answers['q15']}');
       print('📝 Total answers: ${_answers.length}');
       
-      // Save analysis to Firebase
       print('🔥 Calling Firebase save...');
       final result = await MindsetAnalysisBackend.saveMindsetAnalysis(_answers);
 
@@ -91,7 +74,6 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
       if (result['success']) {
         print('✅✅✅ FIREBASE SAVE SUCCESSFUL!');
         
-        // Show generating AI summary message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -117,7 +99,6 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
         
         print('🤖 Starting Groq API call...');
         
-        // Get AI summary from Groq
         final summaryResult = await MindsetAnalysisBackend.summarizeWithGroq(
           _answers,
           result['profile'],
@@ -182,7 +163,6 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
             duration: const Duration(seconds: 4),
           ),
         );
-        // Still navigate back after error
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           Navigator.of(context).pop();
@@ -329,7 +309,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
       body: Column(
         children: [
           LinearProgressIndicator(
-            value: (_currentPage + 1) / 15,
+            value: (_currentPage + 1) / _totalQuestions,
             backgroundColor: const Color(0xFFE0E7FF),
             valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
           ),
@@ -346,7 +326,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Question ${_currentPage + 1} of 15',
+                  'Question ${_currentPage + 1} of $_totalQuestions',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -354,7 +334,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
                   ),
                 ),
                 Text(
-                  '${((_currentPage + 1) / 15 * 100).toInt()}% Complete',
+                  '${((_currentPage + 1) / _totalQuestions * 100).toInt()}% Complete',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Color(0xFF6B7280),
@@ -372,23 +352,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
                   _currentPage = index;
                 });
               },
-              children: [
-                _buildQuestion1(),
-                _buildQuestion2(),
-                _buildQuestion3(),
-                _buildQuestion4(),
-                _buildQuestion5(),
-                _buildQuestion6(),
-                _buildQuestion7(),
-                _buildQuestion8(),
-                _buildQuestion9(),
-                _buildQuestion10(),
-                _buildQuestion11(),
-                _buildQuestion12(),
-                _buildQuestion13(),
-                _buildQuestion14(),
-                _buildQuestion15(),
-              ],
+              children: _buildAllQuestions(),
             ),
           ),
           Container(
@@ -422,7 +386,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
                 Expanded(
                   flex: _currentPage > 0 ? 1 : 1,
                   child: ElevatedButton(
-                    onPressed: _isCanAnswerQuestion() && !_isLoading ? _nextPage : null,
+                    onPressed: _canProceed() && !_isLoading ? _nextPage : null,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: const Color(0xFF6366F1),
@@ -438,7 +402,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(_currentPage == 14 ? 'Finish' : 'Next'),
+                        : Text(_currentPage == _totalQuestions - 1 ? 'Finish' : 'Next'),
                   ),
                 ),
               ],
@@ -449,222 +413,142 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
     );
   }
 
-  bool _isCanAnswerQuestion() {
-    switch (_currentPage) {
-      case 0:
-        return _answers['q1'] != null;
-      case 1:
-        return _answers['q2'] != null;
-      case 2:
-        return _answers['q3'] != null;
-      case 3:
-        if (_answers['q3'] == 'Often confused' || _answers['q3'] == 'Completely confused') {
-          return _answers['q4'] != null && (_answers['q4'] as List).isNotEmpty;
-        }
-        return true;
-      case 4:
-        return _answers['q5'] != null;
-      case 5:
-        return _answers['q6'] != null;
-      case 6:
-        return _answers['q7'] != null;
-      case 7:
-        return _answers['q8'] != null;
-      case 8:
-        return _answers['q9'] != null;
-      case 9:
-        return _answers['q10'] != null;
-      case 10:
-        return _answers['q11'] != null;
-      case 11:
-        return _answers['q12'] != null;
-      case 12:
-        return _answers['q13'] != null;
-      case 13:
-        return _answers['q14'] != null;
-      case 14:
-        return _answers['q15'] != null && _answers['q15'].toString().trim().isNotEmpty;
-      default:
-        return false;
+  bool _canProceed() {
+    final currentKey = 'q${_currentPage + 1}';
+    final answer = _answers[currentKey];
+    
+    if (answer == null) return false;
+    
+    // For multi-select questions, check if at least one option is selected
+    if (answer is List) {
+      return answer.isNotEmpty;
     }
+    
+    // For text questions, check if not empty
+    if (answer is String) {
+      return answer.trim().isNotEmpty;
+    }
+    
+    return true;
   }
 
-  Widget _buildQuestion1() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 1,
-      question: 'How many hours do you actually study per day on average?',
-      options: ['Less than 1 hour', '1–2 hours', '2–4 hours', 'More than 4 hours'],
-      answerKey: 'q1',
-    );
+  List<Widget> _buildAllQuestions() {
+    return [
+      // A. Study Reality & Time Investment
+      _buildSingleChoiceQuestion(1, 'A. Study Reality & Time Investment', 
+        'How many hours do you actually study per day on average?',
+        ['Less than 1 hour', '1–2 hours', '2–4 hours', 'More than 4 hours'], 'q1'),
+      
+      _buildSingleChoiceQuestion(2, 'A. Study Reality & Time Investment',
+        'How consistent is your study routine across the week?',
+        ['Very inconsistent', 'Somewhat inconsistent', 'Mostly consistent', 'Very consistent'], 'q2'),
+      
+      // B. Clarity & Direction
+      _buildSingleChoiceQuestion(3, 'B. Clarity & Direction',
+        'When you sit down to study, how clear are you about what to study next?',
+        ['Very clear', 'Somewhat clear', 'Often confused', 'Completely confused'], 'q3'),
+      
+      _buildMultipleChoiceQuestion(4, 'B. Clarity & Direction',
+        'What usually makes you feel confused while planning what to study?',
+        ['Too many resources', 'No clear roadmap', 'Conflicting advice', 'Fear of choosing the wrong topic', 'Too much syllabus'], 'q4'),
+      
+      _buildSingleChoiceQuestion(5, 'B. Clarity & Direction',
+        'How often do you later feel you studied the wrong topic or wasted time?',
+        ['Rarely', 'Sometimes', 'Often', 'Almost always'], 'q5'),
+      
+      // C. Retention & Forgetting
+      _buildSingleChoiceQuestion(6, 'C. Retention & Forgetting',
+        'How often do you forget topics you studied earlier?',
+        ['Rarely', 'Sometimes', 'Often', 'Almost always'], 'q6'),
+      
+      _buildSingleChoiceQuestion(7, 'C. Retention & Forgetting',
+        'When do you usually realize you\'ve forgotten something important?',
+        ['During revision', 'During practice questions', 'During mock tests', 'In the main exam', 'When someone asks me'], 'q7'),
+      
+      _buildSingleChoiceQuestion(8, 'C. Retention & Forgetting',
+        'What frustrates you the most when you forget something?',
+        ['Forgetting formulas', 'Forgetting concepts', 'Knowing the concept but unable to apply it', 'Making silly mistakes'], 'q8'),
+      
+      // D. Practice & Application
+      _buildSingleChoiceQuestion(9, 'D. Practice & Application',
+        'Do you regularly practice questions while studying?',
+        ['Yes, regularly', 'Sometimes', 'Rarely', 'Almost never'], 'q9'),
+      
+      _buildSingleChoiceQuestion(10, 'D. Practice & Application',
+        'When you practice questions, what usually happens?',
+        ['I solve most correctly', 'I understand solutions but can\'t solve independently', 'I struggle and feel stuck', 'I avoid practice altogether'], 'q10'),
+      
+      // E. Exam Emotions & Anxiety
+      _buildSingleChoiceQuestion(11, 'E. Exam Emotions & Anxiety',
+        'Before an important test or exam, what do you feel most?',
+        ['Fear', 'Self-doubt', 'Panic', 'Motivation drop', 'Calm confidence'], 'q11'),
+      
+      _buildMultipleChoiceQuestion(12, 'E. Exam Emotions & Anxiety',
+        'Even when you feel confident before a test, what still goes wrong?',
+        ['Careless mistakes', 'Time management issues', 'Overthinking', 'Underestimating difficulty', 'Blanking out during the exam'], 'q12'),
+      
+      // F. Confidence & Recovery
+      _buildSingleChoiceQuestion(13, 'F. Confidence & Recovery',
+        'How confident are you with the core topics right now?',
+        ['Very low', 'Low', 'Moderate', 'High', 'Very high'], 'q13'),
+      
+      _buildSingleChoiceQuestion(14, 'F. Confidence & Recovery',
+        'After doing poorly in a test or study session, what usually happens?',
+        ['I lose motivation for days', 'I struggle but continue', 'I recover after some time', 'I quickly adjust and continue', 'It motivates me to work harder'], 'q14'),
+      
+      _buildSingleChoiceQuestion(15, 'F. Confidence & Recovery',
+        'After doing well in a test or mastering a topic, what usually happens next?',
+        ['Reduce effort', 'Maintain consistency', 'Become overconfident', 'Become inconsistent', 'Push harder'], 'q15'),
+      
+      // G. Focus, Fatigue & Mental State
+      _buildSingleChoiceQuestion(16, 'G. Focus, Fatigue & Mental State',
+        'During long study sessions, what do you experience most often?',
+        ['Stress', 'Boredom', 'Confusion', 'Fatigue', 'Motivation swings'], 'q16'),
+      
+      _buildSingleChoiceQuestion(17, 'G. Focus, Fatigue & Mental State',
+        'When you feel bored, distracted, or mentally tired, what do you usually do?',
+        ['Switch topics', 'Take a short break', 'Scroll social media', 'Stop studying for the day', 'Force myself to continue'], 'q17'),
+      
+      // H. Learning Behaviour & Habits
+      _buildMultipleChoiceQuestion(18, 'H. Learning Behaviour & Habits',
+        'Which of these do you do regularly while studying?',
+        ['Read theory', 'Take notes', 'Practice problems', 'Revise within 48 hours', 'Teach or explain to someone'], 'q18'),
+      
+      _buildSingleChoiceQuestion(19, 'H. Learning Behaviour & Habits',
+        'How often do you revise topics after first studying them?',
+        ['Rarely', 'Occasionally', 'Regularly', 'Very systematically'], 'q19'),
+      
+      _buildSingleChoiceQuestion(20, 'H. Learning Behaviour & Habits',
+        'How planned are your study sessions usually?',
+        ['Completely unplanned', 'Rough idea only', 'Moderately planned', 'Well planned'], 'q20'),
+      
+      // I. Motivation & Obstacles
+      _buildSingleChoiceQuestion(21, 'I. Motivation & Obstacles',
+        'What keeps you studying when motivation is low?',
+        ['Habit / routine', 'Fear of exams', 'Long-term goals', 'Support from others', 'Nothing really helps'], 'q21'),
+      
+      _buildSingleChoiceQuestion(22, 'I. Motivation & Obstacles',
+        'What is the biggest obstacle to your learning right now?',
+        ['Lack of time', 'Low motivation', 'Distractions', 'No clear plan', 'Poor guidance/resources'], 'q22'),
+      
+      // J. Reflection
+      _buildTextQuestion(23, 'J. Reflection',
+        'Describe one specific moment in the last 7 days when you felt your learning was going wrong.', 'q23'),
+      
+      _buildSingleChoiceQuestion(24, 'J. Reflection',
+        'If your learning improved by just 20%, what would help you the most?',
+        ['Clear roadmap', 'Better practice', 'More revision', 'Confidence building', 'Better time management'], 'q24'),
+      
+      _buildSingleChoiceQuestion(25, 'J. Reflection',
+        'Overall, how satisfied are you with how you are studying right now?',
+        ['Very dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very satisfied'], 'q25'),
+      
+      _buildTextQuestion(26, 'J. Reflection',
+        'What is one specific thing you want to improve about your learning in the next 30 days?', 'q26'),
+    ];
   }
 
-  Widget _buildQuestion2() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 2,
-      question: 'When you sit down to study, how clear are you about what to study next?',
-      options: ['Very clear', 'Somewhat clear', 'Often confused', 'Completely confused'],
-      answerKey: 'q2',
-    );
-  }
-
-  Widget _buildQuestion3() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 3,
-      question: 'When you sit down to study, how clear are you about what to study next?',
-      options: ['Very clear', 'Somewhat clear', 'Often confused', 'Completely confused'],
-      answerKey: 'q3',
-    );
-  }
-
-  Widget _buildQuestion4() {
-    return _buildMultipleChoiceQuestion(
-      questionNumber: 4,
-      question: 'What things are hard for you and make you feel confused?',
-      subtitle: '(You can select multiple options)',
-      options: [
-        'Too many resources',
-        'No clear roadmap',
-        'Conflicting advice',
-        'Fear of choosing the wrong topic',
-        'Too much syllabus',
-      ],
-      answerKey: 'q4',
-    );
-  }
-
-  Widget _buildQuestion5() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 5,
-      question: 'How often do you feel you studied the wrong topic or wasted time later?',
-      options: ['Rarely', 'Sometimes', 'Often', 'Almost always'],
-      answerKey: 'q5',
-    );
-  }
-
-  Widget _buildQuestion6() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 6,
-      question: 'How often do you forget topics you studied earlier?',
-      options: ['Rarely', 'Sometimes', 'Often', 'Almost always'],
-      answerKey: 'q6',
-    );
-  }
-
-  Widget _buildQuestion7() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 7,
-      question: 'When do you usually realize you\'ve forgotten something important?',
-      options: [
-        'During revision',
-        'During practice questions',
-        'During mock tests',
-        'In the main exam',
-        'When someone asks me',
-      ],
-      answerKey: 'q7',
-    );
-  }
-
-  Widget _buildQuestion8() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 8,
-      question: 'What frustrates you the most when you forget something?',
-      options: [
-        'Forgetting formulas',
-        'Forgetting concepts',
-        'Knowing the concept but unable to apply',
-        'Making silly mistakes',
-      ],
-      answerKey: 'q8',
-    );
-  }
-
-  Widget _buildQuestion9() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 9,
-      question: 'Do you regularly practice questions while studying?',
-      options: ['Yes', 'No'],
-      answerKey: 'q9',
-    );
-  }
-
-  Widget _buildQuestion10() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 10,
-      question: 'Before an important test or exam, what do you feel most?',
-      options: ['Fear', 'Self-doubt', 'Panic', 'Motivation drop'],
-      answerKey: 'q10',
-    );
-  }
-
-  Widget _buildQuestion11() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 11,
-      question: 'Even when you feel confident before a test, what still goes wrong?',
-      options: [
-        'Careless mistakes',
-        'Time management issues',
-        'Overthinking',
-        'Underestimating difficulty',
-        'Blanking out during the exam',
-      ],
-      answerKey: 'q11',
-    );
-  }
-
-  Widget _buildQuestion12() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 12,
-      question: 'After doing well in a test or mastering a topic, what usually happens next?',
-      options: [
-        'Reduce effort',
-        'Maintain consistency',
-        'Over-confidence',
-        'Become inconsistent',
-        'Push harder',
-      ],
-      answerKey: 'q12',
-    );
-  }
-
-  Widget _buildQuestion13() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 13,
-      question: 'During long study sessions, what do you experience most often?',
-      options: ['Stress', 'Boredom', 'Confusion', 'Fatigue', 'Motivation swings'],
-      answerKey: 'q13',
-    );
-  }
-
-  Widget _buildQuestion14() {
-    return _buildSingleChoiceQuestion(
-      questionNumber: 14,
-      question: 'When you feel bored, distracted, or mentally tired while studying, what do you usually do?',
-      options: [
-        'Switch topics',
-        'Take a break',
-        'Scroll social media',
-        'Stop studying',
-        'Force myself to continue',
-      ],
-      answerKey: 'q14',
-    );
-  }
-
-  Widget _buildQuestion15() {
-    return _buildTextQuestion(
-      questionNumber: 15,
-      question: 'Describe one specific moment in the last 7 days when you felt your learning was going wrong.',
-      answerKey: 'q15',
-    );
-  }
-
-  Widget _buildSingleChoiceQuestion({
-    required int questionNumber,
-    required String question,
-    required List<String> options,
-    required String answerKey,
-  }) {
+  Widget _buildSingleChoiceQuestion(int questionNumber, String category, String question, List<String> options, String answerKey) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -677,9 +561,9 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Q$questionNumber',
+              category,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF4338CA),
               ),
@@ -752,13 +636,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
     );
   }
 
-  Widget _buildMultipleChoiceQuestion({
-    required int questionNumber,
-    required String question,
-    String? subtitle,
-    required List<String> options,
-    required String answerKey,
-  }) {
+  Widget _buildMultipleChoiceQuestion(int questionNumber, String category, String question, List<String> options, String answerKey) {
     if (_answers[answerKey] == null) {
       _answers[answerKey] = <String>[];
     }
@@ -776,9 +654,9 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Q$questionNumber',
+              category,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF4338CA),
               ),
@@ -793,17 +671,15 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
               height: 1.4,
             ),
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6B7280),
-                fontStyle: FontStyle.italic,
-              ),
+          const SizedBox(height: 4),
+          const Text(
+            '(You can select multiple options)',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+              fontStyle: FontStyle.italic,
             ),
-          ],
+          ),
           const SizedBox(height: 24),
           ...options.map((option) {
             final isSelected = selectedOptions.contains(option);
@@ -855,22 +731,22 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
                           ),
                         ),
                       ),
-                    ],
+        ]),
                   ),
                 ),
-              ),
-            );
+              );
           }),
         ],
       ),
     );
   }
 
-  Widget _buildTextQuestion({
-    required int questionNumber,
-    required String question,
-    required String answerKey,
-  }) {
+  Widget _buildTextQuestion(int questionNumber, String category, String question, String answerKey) {
+    // Create controller if doesn't exist yet
+    if (!_openEndedController.text.isNotEmpty && _answers[answerKey] != null) {
+      _openEndedController.text = _answers[answerKey];
+    }
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -883,9 +759,9 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Q$questionNumber',
+              category,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF4338CA),
               ),
@@ -902,7 +778,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
           ),
           const SizedBox(height: 24),
           TextField(
-            controller: _q15Controller,
+            controller: _openEndedController,
             maxLines: 8,
             autofocus: true,
             decoration: InputDecoration(

@@ -7,6 +7,8 @@ import 'package:eduai/screens/academic_context.dart';
 import 'package:eduai/screens/mindset_analysis.dart';
 import 'package:eduai/screens/course_selection.dart';
 import 'package:eduai/screens/roadmap_screen.dart';
+import 'package:eduai/screens/ai_understanding_profile.dart';
+import 'package:eduai/screens/study_groups_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -246,6 +248,40 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+                
+                // AI Understanding Button - Always visible
+                _buildActionCard(
+                  context,
+                  icon: Icons.smart_toy,
+                  title: 'AI Understanding Profile',
+                  description: 'See how AI understands your learning style',
+                  color: Colors.cyan,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AIUnderstandingProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+                
+                // Study Groups Button - Always visible
+                _buildActionCard(
+                  context,
+                  icon: Icons.groups,
+                  title: 'Study Groups',
+                  description: 'Join or create study groups to learn together',
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const StudyGroupsScreen(),
+                      ),
+                    );
+                  },
+                ),
                 
                 if (!hasSelectedCourse)
                   _buildActionCard(

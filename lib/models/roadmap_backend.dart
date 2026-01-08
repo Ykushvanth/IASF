@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:eduai/models/roadmap_week_generator.dart';
 
 /// RoadmapBackend - Generates personalized learning roadmaps with topic-specific videos
 /// 
@@ -20,16 +21,140 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// - Language preference integrated into video queries
 /// - Removes generic words from topics for cleaner searches
 class RoadmapBackend {
+  /// Generate only the next week of roadmap based on completed progress
+  static Future<Map<String, dynamic>> generateNextWeek({
+    required String courseName,
+  }) async {
+    print('═══════════════════════════════════════════════════════');
+    print('📅 Generating NEXT WEEK of roadmap');
+    print('📚 Course: $courseName');
+    print('═══════════════════════════════════════════════════════');
+    
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      
+      if (user == null) {
+        return {'success': false, 'message': 'User not logged in'};
+      }
+      
+      // Get current roadmap and user data
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      final existingRoadmap = (userDoc.data()?['roadmap'] as List?) ?? [];
+      final courseAnswers = userDoc.data()?['courseAnswers'] as Map<String, dynamic>? ?? {};
+      final mindsetProfile = <String, String>{};
+      final rawAnswers = userDoc.data()?['mindsetAnswers'] ?? {};
+      
+      if (rawAnswers is Map) {
+        rawAnswers.forEach((key, value) {
+          if (value is String) {
+            mindsetProfile[key.toString()] = value;
+          } else if (value is List) {
+            mindsetProfile[key.toString()] = value.join(', ');
+          }
+        });
+      }
+      
+      // Calculate which week to generate
+      int nextWeekNumber = 1;
+      if (existingRoadmap.isNotEmpty) {
+        final weeks = existingRoadmap.map((item) => item['week'] ?? 1).toList();
+        nextWeekNumber = weeks.reduce((a, b) => a > b ? a : b) + 1;
+      }
+      
+      print('📊 Next week to generate: Week $nextWeekNumber');
+      print('📋 Existing roadmap has ${existingRoadmap.length} items');
+      
+      // Get previous week's topics for context
+      String previousContext = '';
+      if (existingRoadmap.isNotEmpty) {
+        final lastWeekItems = existingRoadmap.where((item) => item['week'] == nextWeekNumber - 1).toList();
+        if (lastWeekItems.isNotEmpty) {
+          final topics = lastWeekItems.map((item) => item['topic'] ?? '').join(', ');
+          previousContext = 'Last week covered: $topics. Build upon these concepts.';
+        }
+      }
+      
+      // Generate the next week
+      final studyTime = courseAnswers['q4'] ?? 'Not specified';
+      final targetDate = courseAnswers['q5'] ?? 'Not specified';
+      final currentKnowledge = courseAnswers['q2'] ?? 'Not specified';
+      final preferredLanguage = userDoc.data()?['preferredLanguage'] as String? ?? 'English';
+      final userLevel = userDoc.data()?['userLevel'] as String? ?? 'Intermediate';
+      final improvementAreas = (userDoc.data()?['improvementAreas'] as List?)?.cast<String>() ?? [];
+      
+      final nextWeekData = await RoadmapWeekGenerator.generateSingleWeek(
+        courseName: courseName,
+        weekNumber: nextWeekNumber,
+        previousContext: previousContext,
+        mindsetProfile: mindsetProfile,
+        studyTime: studyTime.toString(),
+        userLevel: userLevel,
+        improvementAreas: improvementAreas,
+        preferredLanguage: preferredLanguage,
+      );
+      
+      if (nextWeekData == null || nextWeekData.isEmpty) {
+        return {'success': false, 'message': 'Failed to generate week content'};
+      }
+      
+      // Fetch videos for the new week
+      final weekWithVideos = await _fetchVideosForRoadmap(
+        nextWeekData,
+        courseName,
+        mindsetProfile,
+        preferredLanguage,
+      );
+      
+      // Append to existing roadmap
+      final updatedRoadmap = [...existingRoadmap, ...weekWithVideos];
+      
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'roadmap': updatedRoadmap,
+        'currentWeek': nextWeekNumber,
+        'lastWeekGeneratedAt': FieldValue.serverTimestamp(),
+      });
+      
+      print('✅ Week $nextWeekNumber generated and added!');
+      print('═══════════════════════════════════════════════════════\n');
+      
+      return {
+        'success': true,
+        'weekNumber': nextWeekNumber,
+        'weekData': weekWithVideos,
+        'message': 'Week $nextWeekNumber generated successfully',
+      };
+    } catch (e, stackTrace) {
+      print('❌ Error generating next week: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   static Future<Map<String, dynamic>> generateRoadmap({
     required String courseName,
     required Map<String, String> mindsetProfile,
     bool forceRegenerate = false,
+    String? userLevel,
+    List<String>? improvementAreas,
+    int? studyHoursPerDay,
+    int? daysUntilExam,
   }) async {
     print('═══════════════════════════════════════════════════════');
     print('🗺️ Starting PERSONALIZED roadmap generation');
     print('📚 Course: $courseName');
     print('🧠 Mindset profile keys: ${mindsetProfile.keys.join(", ")}');
     print('🔄 Force regenerate: $forceRegenerate');
+    if (userLevel != null) print('📊 User Level: $userLevel');
+    if (improvementAreas != null) print('📈 Improvement Areas: ${improvementAreas.join(", ")}');
+    if (studyHoursPerDay != null) print('⏰ Study Hours/Day: $studyHoursPerDay');
+    if (daysUntilExam != null) print('📅 Days Until Exam: $daysUntilExam');
     print('═══════════════════════════════════════════════════════');
     
     try {
@@ -69,6 +194,17 @@ class RoadmapBackend {
         };
       }
       
+      // Store user level and improvement areas for week generation
+      if (userLevel != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+          'userLevel': userLevel,
+          'improvementAreas': improvementAreas ?? [],
+        });
+      }
+      
       if (forceRegenerate && existingRoadmap != null && existingRoadmap.isNotEmpty) {
         print('🗑️ Clearing existing roadmap (${existingRoadmap.length} items) for regeneration...');
         await FirebaseFirestore.instance
@@ -81,23 +217,29 @@ class RoadmapBackend {
         print('✅ Old roadmap cleared');
       }
       
-      // Generate AI-powered personalized roadmap
-      print('🤖 Generating personalized roadmap with AI...');
-      final aiRoadmap = await _generatePersonalizedRoadmap(
+      // Generate ONLY FIRST WEEK initially (progressive generation)
+      print('🤖 Generating FIRST WEEK of personalized roadmap...');
+      final firstWeekData = await RoadmapWeekGenerator.generateSingleWeek(
         courseName: courseName,
+        weekNumber: 1,
+        previousContext: 'This is the first week - establish strong fundamentals.',
         mindsetProfile: mindsetProfile,
-        courseAnswers: courseAnswers,
+        studyTime: courseAnswers['q4']?.toString() ?? '2-3 hours',
+        userLevel: userLevel ?? 'Intermediate',
+        improvementAreas: improvementAreas ?? [],
         preferredLanguage: preferredLanguage,
       );
 
-      if (aiRoadmap == null || aiRoadmap.isEmpty) {
-        print('⚠️ AI generation failed, using structured fallback');
+      if (firstWeekData == null || firstWeekData.isEmpty) {
+        print('⚠️ First week generation failed, using structured fallback');
         // Use structured topics without videos initially
         final topics = _getCourseTopics(courseName);
         final roadmap = topics.asMap().entries.map((entry) {
           final index = entry.key;
           final topic = entry.value;
           return {
+            'day': index + 1,
+            'week': 1,
             'topic': 'Step ${index + 1}: ${topic['name']}',
             'difficulty': topic['difficulty'],
             'whyNow': topic['whyNow'] ?? 'Essential topic in the curriculum',
@@ -114,6 +256,7 @@ class RoadmapBackend {
             .doc(user.uid)
             .update({
           'roadmap': roadmap,
+          'currentWeek': 1,
           'roadmapGeneratedAt': FieldValue.serverTimestamp(),
         });
         
@@ -123,34 +266,34 @@ class RoadmapBackend {
         };
       }
 
-      // Fetch videos for all topics
-      print('\n🎥 Fetching videos for all topics...');
-      print('📊 Roadmap items before video fetch: ${aiRoadmap.length}');
-      final roadmapWithVideos = await _fetchVideosForRoadmap(
-        aiRoadmap,
+      // Fetch videos for first week
+      print('\n🎥 Fetching videos for Week 1...');
+      final weekWithVideos = await _fetchVideosForRoadmap(
+        firstWeekData,
         courseName,
         mindsetProfile,
         preferredLanguage,
       );
-      print('📊 Roadmap items after video fetch: ${roadmapWithVideos.length}');
       
-      // Save AI-generated roadmap with videos to Firebase
-      print('\n💾 Saving personalized roadmap to Firebase...');
+      // Save first week to Firebase
+      print('\n💾 Saving Week 1 to Firebase...');
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-        'roadmap': roadmapWithVideos,
+        'roadmap': weekWithVideos,
+        'currentWeek': 1,
         'roadmapGeneratedAt': FieldValue.serverTimestamp(),
       });
 
-      print('✅ ROADMAP SAVED SUCCESSFULLY!');
-      print('📊 Total items: ${roadmapWithVideos.length}');
+      print('✅ FIRST WEEK SAVED! User can generate next weeks progressively.');
+      print('📊 Week 1 items: ${weekWithVideos.length}');
       print('═══════════════════════════════════════════════════════\n');
       
       return {
         'success': true,
-        'roadmap': roadmapWithVideos,
+        'roadmap': weekWithVideos,
+        'message': 'Week 1 generated. Complete it to unlock Week 2!',
       };
     } catch (e, stackTrace) {
       print('\n❌ CRITICAL ERROR generating roadmap: $e');

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduai/models/course_selection_backend.dart';
 import 'package:eduai/models/roadmap_backend.dart';
 import 'package:eduai/screens/roadmap_screen.dart';
+import 'package:eduai/screens/exam_level_assessment.dart';
 
 class CourseQuestionnaireScreen extends StatefulWidget {
   final String courseName;
@@ -241,227 +242,24 @@ class _CourseQuestionnaireScreenState extends State<CourseQuestionnaireScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () async {
-                  // Save navigator and context BEFORE async operations
-                  final navigator = Navigator.of(context);
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  
+                onPressed: () {
                   // Close dialog
-                  navigator.pop();
+                  Navigator.of(context).pop();
                   
-                  // Check mounted before proceeding
-                  if (!mounted) return;
-                  
-                  print('🎬 User clicked View My Roadmap button');
-                  
-                  // Show loading dialog
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (BuildContext dialogContext) {
-                      print('📱 Loading dialog created');
-                      return WillPopScope(
-                        onWillPop: () async => false,
-                        child: const Center(
-                          child: Card(
-                            child: Padding(
-                              padding: EdgeInsets.all(20),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'Generating your personalized roadmap...\nThis may take up to 60 seconds...',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                  // Navigate to level assessment screen
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ExamLevelAssessmentScreen(
+                        courseName: widget.courseName,
+                        courseIcon: widget.courseIcon,
+                        courseColor: widget.courseColor,
+                      ),
+                    ),
                   );
-                  
-                  // Small delay to ensure dialog is rendered
-                  await Future.delayed(const Duration(milliseconds: 100));
-                  
-                  // Get mindset profile from Firebase
-                  final user = FirebaseAuth.instance.currentUser;
-                  final userDoc = await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user?.uid)
-                      .get();
-                  
-                  // Safely convert mindset answers - handle different data types
-                  final rawAnswers = userDoc.data()?['mindsetAnswers'] ?? {};
-                  final mindsetAnswers = <String, String>{};
-                  
-                  if (rawAnswers is Map) {
-                    rawAnswers.forEach((key, value) {
-                      if (value is String) {
-                        mindsetAnswers[key.toString()] = value;
-                      } else if (value is List) {
-                        // Convert list to comma-separated string
-                        mindsetAnswers[key.toString()] = value.join(', ');
-                      } else {
-                        mindsetAnswers[key.toString()] = value.toString();
-                      }
-                    });
-                  }
-                  
-                  try {
-                    print('\n═══════════════════════════════════════════════════════');
-                    print('🚀 STARTING ROADMAP GENERATION');
-                    print('═══════════════════════════════════════════════════════');
-                    print('📚 Course: ${widget.courseName}');
-                    print('🧠 Mindset answers available: ${mindsetAnswers.keys.length} items');
-                    print('📋 Mindset keys: ${mindsetAnswers.keys.join(", ")}');
-                    print('═══════════════════════════════════════════════════════\n');
-                    
-                    // Generate roadmap
-                    final roadmapResult = await RoadmapBackend.generateRoadmap(
-                      courseName: widget.courseName,
-                      mindsetProfile: mindsetAnswers,
-                    ).timeout(
-                      const Duration(seconds: 60),
-                      onTimeout: () {
-                        print('⏱️ Roadmap generation timed out');
-                        return {
-                          'success': false,
-                          'message': 'Request timed out. Please check your internet connection and try again.',
-                        };
-                      },
-                    );
-                    
-                    print('\n═══════════════════════════════════════════════════════');
-                    print('📊 ROADMAP RESULT RECEIVED');
-                    print('═══════════════════════════════════════════════════════');
-                    print('✅ Success: ${roadmapResult['success']}');
-                    if (roadmapResult['success']) {
-                      final roadmap = roadmapResult['roadmap'] as List<Map<String, dynamic>>;
-                      print('📊 Roadmap items: ${roadmap.length}');
-                    } else {
-                      print('❌ Error message: ${roadmapResult['message']}');
-                    }
-                    print('═══════════════════════════════════════════════════════\n');
-                    
-                    if (roadmapResult['success']) {
-                      final roadmap = roadmapResult['roadmap'] as List<Map<String, dynamic>>;
-                      print('✅ Roadmap generated with ${roadmap.length} items');
-                      
-                      // Check mounted
-                      if (!mounted) {
-                        print('⚠️ Widget not mounted, aborting');
-                        return;
-                      }
-                      
-                      // Close loading dialog using saved navigator
-                      print('🔄 Closing loading dialog...');
-                      try {
-                        navigator.pop();
-                        print('✅ Dialog closed');
-                      } catch (e) {
-                        print('⚠️ Dialog close failed: $e');
-                      }
-                      
-                      // Small delay
-                      await Future.delayed(const Duration(milliseconds: 200));
-                      
-                      // Final mounted check
-                      if (!mounted) {
-                        print('⚠️ Widget unmounted');
-                        return;
-                      }
-                      
-                      if (roadmap.isEmpty) {
-                        scaffoldMessenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Roadmap is empty. Using fallback topics.'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                      
-                      // Navigate using saved navigator
-                      print('🚀 Navigating to roadmap screen...');
-                      navigator.pushReplacement(
-                        MaterialPageRoute(
-                          builder: (_) => RoadmapScreen(
-                            courseName: widget.courseName,
-                            roadmap: roadmap,
-                          ),
-                        ),
-                      );
-                      print('✅ Navigation completed');
-                    } else {
-                      // Error case
-                      if (!mounted) return;
-                      
-                      print('🔄 Closing dialog (error case)...');
-                      try {
-                        navigator.pop();
-                        print('✅ Dialog closed (error)');
-                      } catch (e) {
-                        print('⚠️ Error closing dialog: $e');
-                      }
-                      
-                      final errorMessage = roadmapResult['message'] ?? 'Failed to generate roadmap';
-                      print('❌ Roadmap generation failed: $errorMessage');
-                      
-                      await Future.delayed(const Duration(milliseconds: 200));
-                      
-                      if (mounted) {
-                        scaffoldMessenger.showSnackBar(
-                          SnackBar(
-                            content: Text(errorMessage),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 5),
-                            action: SnackBarAction(
-                              label: 'Retry',
-                              textColor: Colors.white,
-                              onPressed: () {},
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  } catch (e, stackTrace) {
-                    print('❌ EXCEPTION during roadmap generation: $e');
-                    print('Stack trace: $stackTrace');
-                    
-                    if (!mounted) return;
-                    
-                    print('🔄 Closing dialog (exception)...');
-                    try {
-                      navigator.pop();
-                      print('✅ Dialog closed (exception)');
-                    } catch (navError) {
-                      print('⚠️ Could not close dialog: $navError');
-                    }
-                    
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    
-                    if (mounted) {
-                      scaffoldMessenger.showSnackBar(
-                        SnackBar(
-                          content: Text('Error: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                          duration: const Duration(seconds: 5),
-                          action: SnackBarAction(
-                            label: 'Retry',
-                            textColor: Colors.white,
-                            onPressed: () {},
-                          ),
-                        ),
-                      );
-                    }
-                  }
                 },
                 child: Text(
-                  'View My Roadmap',
+                  'Continue to Assessment',
                   style: TextStyle(
                     color: widget.courseColor,
                     fontWeight: FontWeight.w600,
