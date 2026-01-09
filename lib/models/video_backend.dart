@@ -210,7 +210,7 @@ class VideoBackend {
                         radius: 12,
                         backgroundColor: const Color(0xFF6366F1),
                         child: Text(
-                          channelName[0].toUpperCase(),
+                          channelName.isNotEmpty ? channelName[0].toUpperCase() : 'V',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,

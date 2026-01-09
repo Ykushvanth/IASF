@@ -92,6 +92,7 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     
     // Get current week number
     final weeks = _roadmap.map((item) => item['week'] ?? 1).toList();
+    if (weeks.isEmpty) return false; // Safety check before reduce
     final currentWeek = weeks.reduce((a, b) => a > b ? a : b);
     
     // Check if all days in current week are completed
@@ -319,7 +320,7 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
     
     // Calculate average test score
     final completedTopics = _roadmap.where((t) => t['completed'] == true && t['testScore'] != null).toList();
-    final averageScore = completedTopics.isNotEmpty
+    final averageScore = (completedTopics.isNotEmpty && completedTopics.length > 0)
         ? (completedTopics.map((t) => t['testScore'] as int).reduce((a, b) => a + b) / completedTopics.length).round()
         : null;
 

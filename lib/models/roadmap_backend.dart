@@ -981,6 +981,121 @@ JSON FORMAT:
     return 'clear tutorial explained simply';
   }
 
+  /// Build comprehensive mindset description from user profile for video recommendations
+  static Future<String> _buildMindsetDescription(String userLevel, Map<String, dynamic> courseAnswers) async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        return 'A learner seeking clear explanations and structured content.';
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final learningProfile = userDoc.data()?['learningProfile'] as Map<String, dynamic>? ?? {};
+      final mindsetAnswers = userDoc.data()?['mindsetAnswers'] as Map<String, dynamic>? ?? {};
+      
+      List<String> preferences = [];
+      List<String> avoids = [];
+
+      // Determine learner level from courseAnswers
+      final currentKnowledge = courseAnswers['q2']?.toString().toLowerCase() ?? '';
+      if (currentKnowledge.contains('basic') || currentKnowledge.contains('beginner') || userLevel.toLowerCase() == 'beginner') {
+        preferences.addAll([
+          'foundational knowledge',
+          'slow explanations',
+          'visual demonstrations',
+          'simple examples',
+          'step-by-step tutorials',
+          'basic terminology',
+          'gentle introduction',
+          'animated explanations',
+          'whiteboard teaching',
+          'complete beginner friendly',
+          'from scratch tutorials',
+          'zero to hero approach'
+        ]);
+        avoids.addAll([
+          'complex optimization',
+          'advanced algorithms',
+          'time complexity analysis',
+          'competitive programming',
+          'leetcode hard problems'
+        ]);
+      } else if (currentKnowledge.contains('intermediate') || userLevel.toLowerCase() == 'intermediate') {
+        preferences.addAll([
+          'practical examples',
+          'clear explanations',
+          'real-world applications',
+          'problem-solving approach',
+          'conceptual understanding',
+          'best practices'
+        ]);
+        avoids.addAll([
+          'overly basic content',
+          'too much theory without practice'
+        ]);
+      } else {
+        preferences.addAll([
+          'advanced concepts',
+          'optimization techniques',
+          'deep dives',
+          'complex problem solving',
+          'theoretical foundations',
+          'cutting-edge approaches'
+        ]);
+        avoids.add('overly simplified content');
+      }
+
+      // Add learning style preferences from mindset analysis
+      final confusion = learningProfile['confusionFactors']?.toString() ?? '';
+      final frustration = learningProfile['frustrationSource']?.toString() ?? '';
+      final forgetting = learningProfile['forgettingFrequency']?.toString() ?? '';
+      final emotional = learningProfile['examEmotionalState']?.toString() ?? '';
+
+      if (confusion.contains('Often') || confusion.contains('time management')) {
+        preferences.addAll(['structured content', 'time-boxed lessons', 'organized approach']);
+      }
+
+      if (frustration.contains('apply') || frustration.contains('application')) {
+        preferences.addAll(['practical examples', 'hands-on tutorials', 'application-focused']);
+        avoids.add('pure theory without examples');
+      }
+
+      if (forgetting.contains('Sometimes') || forgetting.contains('Often')) {
+        preferences.addAll(['memorable explanations', 'mnemonics', 'revision techniques', 'spaced repetition']);
+      }
+
+      if (emotional.contains('Self-doubt') || emotional.contains('anxiety')) {
+        preferences.addAll(['encouraging tone', 'supportive teaching', 'confidence building']);
+        avoids.add('intimidating presentations');
+      }
+
+      // Build the mindset description
+      String level = currentKnowledge.contains('basic') || userLevel.toLowerCase() == 'beginner' 
+          ? 'beginner' 
+          : currentKnowledge.contains('advanced') || userLevel.toLowerCase() == 'advanced'
+          ? 'advanced'
+          : 'intermediate';
+
+      String mindsetDescription = 'A $level learner who needs ';
+      if (preferences.isNotEmpty) {
+        mindsetDescription += preferences.take(12).join(', ');
+      }
+      if (avoids.isNotEmpty) {
+        mindsetDescription += '. Avoids ' + avoids.join(', ');
+      }
+      mindsetDescription += '.';
+
+      return mindsetDescription;
+    } catch (e) {
+      print('❌ Error building mindset description: $e');
+      return 'A learner seeking clear explanations and structured content.';
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> _searchYouTubeVideos(
     String topic,
     String courseName,
@@ -991,219 +1106,191 @@ JSON FORMAT:
   }) async {
     try {
       // Validate API key
-      final youtubeApiKey = dotenv.env['YOUTUBE_API_KEY'] ?? '';
-      if (youtubeApiKey.isEmpty) {
-        print('❌ ERROR: YouTube API key is not configured!');
-        print('💡 Please add your YouTube API key in config/.env');
+      final apiKey = dotenv.env['VIDEO_RECOMMENDATION_API_KEY'] ?? '';
+      if (apiKey.isEmpty) {
+        print('❌ ERROR: Video Recommendation API key is not configured!');
+        print('💡 Please add VIDEO_RECOMMENDATION_API_KEY in config/.env');
         return [];
       }
       
-      if (youtubeApiKey.length < 30) {
-        print('⚠️ WARNING: YouTube API key seems too short (${youtubeApiKey.length} chars)');
-        print('💡 A valid API key is usually 39 characters long');
-      }
-      
-      // Build highly specific search query for topic-focused content
-      String languageCode = _getLanguageCode(language);
-      
-      // Extract the core topic name more intelligently
-      // Remove prefixes like "Week 1:", "Day 2:", etc.
+      // Extract the core topic name
       String cleanTopic = topic
           .replaceAll(RegExp(r'^(Week|Day|Month)\s*\d+:\s*', caseSensitive: false), '')
-          .replaceAll(RegExp(r'\b(study|learn|understand|chapter|topic|revision|practice|introduction to)\b', caseSensitive: false), '')
           .trim();
       
-      // If topic has a dash/hyphen, it's usually "Subject - Specific Topic"
-      // Example: "Python - Loops" -> focus on "Loops" with Python context
-      String searchQuery;
-      if (cleanTopic.contains('-')) {
-        final parts = cleanTopic.split('-').map((e) => e.trim()).toList();
-        if (parts.length >= 2) {
-          // Use: "Specific Topic in Subject context"
-          searchQuery = '${parts[1]} ${parts[0]} $videoStyle tutorial';
-          print('🎯 Topic-specific search: "${parts[1]}" in context of "${parts[0]}"');
-        } else {
-          searchQuery = '$cleanTopic $videoStyle tutorial';
-        }
-      } else {
-        // Simple topic without subject context
-        searchQuery = '$cleanTopic $videoStyle tutorial';
-      }
-      
-      // Add channel hints to search if available (prioritize recommended channels)
-      if (channelHints.isNotEmpty) {
-        final channelNames = channelHints.take(2).join(' OR ');
-        searchQuery = '$cleanTopic $channelNames $videoStyle';
-        print('🔍 Searching with channel hints: $channelNames');
-      }
-      
-      // Add language preference for non-English
-      if (language.toLowerCase() != 'english') {
-        searchQuery = '$searchQuery in $language';
-      }
-      
-      print('🔍 Final search query: $searchQuery');
+      print('🔍 Searching videos for: $cleanTopic');
       print('🧠 Video style (based on mindset): $videoStyle');
       
-      // First, search for videos with short duration and high engagement
-      final searchUrl = Uri.parse(
-        'https://www.googleapis.com/youtube/v3/search?'
-        'part=snippet&'
-        'q=${Uri.encodeComponent(searchQuery)}&'
-        'type=video&'
-        'videoDuration=medium&'
-        'maxResults=10&'
-        'order=relevance&'
-        'relevanceLanguage=$languageCode&'
-        'key=$youtubeApiKey',
-      );
-
-      print('📡 YouTube API search: $searchQuery');
+      // Get user data to build comprehensive mindset
+      final User? user = FirebaseAuth.instance.currentUser;
+      String mindsetDescription = 'A learner seeking clear explanations and structured content.';
       
-      final searchResponse = await http.get(searchUrl).timeout(
-        const Duration(seconds: 10),
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        final courseAnswers = userDoc.data()?['courseAnswers'] as Map<String, dynamic>? ?? {};
+        final userLevel = userDoc.data()?['userLevel'] as String? ?? 'Intermediate';
+        
+        mindsetDescription = await _buildMindsetDescription(userLevel, courseAnswers);
+      }
+      
+      print('📋 Mindset profile: ${mindsetDescription.substring(0, mindsetDescription.length > 100 ? 100 : mindsetDescription.length)}...');
+      
+      // Build request body
+      final requestBody = jsonEncode({
+        'api_key': apiKey,
+        'topic': '$cleanTopic tutorial',
+        'mindset': mindsetDescription,
+        'max_results': 20,
+      });
+      
+      // Call HuggingFace recommendation API
+      final apiUrl = Uri.parse('https://hemanth0112-smilarity-check.hf.space/recommend');
+      
+      print('📡 Calling video recommendation API...');
+      
+      final response = await http.post(
+        apiUrl,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      ).timeout(
+        const Duration(seconds: 30),
         onTimeout: () {
-          print('⏱️ YouTube search timeout for: $topic');
-          throw Exception('YouTube API timeout');
+          print('⏱️ API timeout for: $topic');
+          throw Exception('Video recommendation API timeout');
         },
       );
 
-      if (searchResponse.statusCode == 200) {
-        final searchData = jsonDecode(searchResponse.body);
-        final items = searchData['items'] as List? ?? [];
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final recommendations = responseData['recommendations'] as List? ?? [];
         
-        if (items.isEmpty) {
-          print('⚠️ No videos found for: $topic');
+        if (recommendations.isEmpty) {
+          print('⚠️ No video recommendations found for: $topic');
           return [];
         }
         
-        // Get video IDs to fetch statistics
-        final videoIds = items
-            .map((item) => item['id']['videoId'])
-            .where((id) => id != null)
-            .take(10)
-            .join(',');
+        print('📦 Received ${recommendations.length} video recommendations');
         
-        // Fetch video statistics (likes, views, etc.)
-        final statsUrl = Uri.parse(
-          'https://www.googleapis.com/youtube/v3/videos?'
-          'part=statistics,contentDetails&'
-          'id=$videoIds&'
-          'key=$youtubeApiKey',
-        );
+        // Convert recommendations to our video format
+        List<Map<String, dynamic>> videos = [];
         
-        final statsResponse = await http.get(statsUrl).timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            print('⏱️ YouTube stats timeout');
-            throw Exception('Stats timeout');
-          },
-        );
-        
-        Map<String, dynamic> videoStats = {};
-        if (statsResponse.statusCode == 200) {
-          final statsData = jsonDecode(statsResponse.body);
-          for (var video in statsData['items'] ?? []) {
-            videoStats[video['id']] = {
-              'viewCount': int.tryParse(video['statistics']['viewCount'] ?? '0') ?? 0,
-              'likeCount': int.tryParse(video['statistics']['likeCount'] ?? '0') ?? 0,
-              'commentCount': int.tryParse(video['statistics']['commentCount'] ?? '0') ?? 0,
-              'duration': video['contentDetails']['duration'] ?? '',
-            };
+        for (var rec in recommendations) {
+          try {
+            final url = rec['url'] as String? ?? '';
+            final videoId = _extractVideoId(url);
+            
+            if (videoId == null || videoId.isEmpty) {
+              print('⚠️ Could not extract video ID from: $url');
+              continue;
+            }
+            
+            final title = rec['title'] as String? ?? '';
+            final views = rec['views'] as int? ?? 0;
+            final score = (rec['score'] as num?)?.toDouble() ?? 0.0;
+            final engagement = (rec['engagement'] as num?)?.toDouble() ?? 0.0;
+            final detectedLevel = rec['detected_level'] as String? ?? '';
+            final duration = rec['duration'] as int? ?? 0;
+            final verdict = rec['verdict'] as String? ?? '';
+            
+            // Calculate relevance score (convert 0-1 score to 0-100)
+            final relevanceScore = score * 100;
+            
+            // Skip videos that are not suitable
+            if (verdict.toLowerCase().contains('not suitable')) {
+              print('⏭️ Skipping unsuitable video: $title');
+              continue;
+            }
+            
+            videos.add({
+              'videoId': videoId,
+              'title': title,
+              'thumbnail': 'https://img.youtube.com/vi/$videoId/mqdefault.jpg',
+              'channelName': '', // Not provided by API, will be empty
+              'description': 'Duration: ${duration}min | Level: $detectedLevel | Verdict: $verdict',
+              'viewCount': views,
+              'likeCount': 0, // Not provided by API
+              'engagementScore': engagement,
+              'relevanceScore': relevanceScore,
+              'detectedLevel': detectedLevel,
+              'verdict': verdict,
+            });
+          } catch (e) {
+            print('❌ Error processing video recommendation: $e');
+            continue;
           }
         }
-        
-        // Build video list with statistics and relevance scoring
-        List<Map<String, dynamic>> videos = items.map((item) {
-          final snippet = item['snippet'];
-          final videoId = item['id']['videoId'];
-          if (videoId == null) return null;
-          
-          final stats = videoStats[videoId] ?? {};
-          final viewCount = stats['viewCount'] ?? 0;
-          final likeCount = stats['likeCount'] ?? 0;
-          final description = snippet['description'] ?? '';
-          final title = snippet['title'] ?? '';
-          
-          // Calculate relevance score based on topic keywords in title and description
-          double relevanceScore = _calculateVideoRelevance(topic, title, description, videoStyle);
-          
-          return {
-            'videoId': videoId,
-            'title': title,
-            'thumbnail': snippet['thumbnails']?['medium']?['url'] ?? '',
-            'channelName': snippet['channelTitle'] ?? '',
-            'description': description,
-            'viewCount': viewCount,
-            'likeCount': likeCount,
-            'engagementScore': viewCount > 0 ? (likeCount / viewCount * 1000) : 0,
-            'relevanceScore': relevanceScore,
-          };
-        }).where((item) => item != null).cast<Map<String, dynamic>>().toList();
-        
-        // Debug: Show relevance scores
-        if (videos.isNotEmpty) {
-          print('📊 Video relevance scores:');
-          for (int i = 0; i < videos.length && i < 3; i++) {
-            print('   ${i+1}. "${videos[i]['title']}" - Score: ${videos[i]['relevanceScore'].toStringAsFixed(1)}%');
-          }
-        }
-        
-        // Filter videos with low relevance scores (below 15%)
-        videos = videos.where((v) => (v['relevanceScore'] as double) >= 15.0).toList();
         
         if (videos.isEmpty) {
-          print('⚠️ No relevant videos found for: $topic (all filtered out)');
+          print('⚠️ No valid videos after processing recommendations');
           return [];
         }
         
-        // Sort by combined score: 60% relevance + 40% engagement
+        // Sort by relevance score (already provided by API)
         videos.sort((a, b) {
-          final relevanceA = a['relevanceScore'] as double;
-          final relevanceB = b['relevanceScore'] as double;
-          final engagementA = (a['engagementScore'] as num).toDouble();
-          final engagementB = (b['engagementScore'] as num).toDouble();
-          
-          // Normalize engagement score (0-100 scale)
-          final normalizedEngagementA = engagementA.clamp(0, 10) * 10;
-          final normalizedEngagementB = engagementB.clamp(0, 10) * 10;
-          
-          final combinedScoreA = (relevanceA * 0.6) + (normalizedEngagementA * 0.4);
-          final combinedScoreB = (relevanceB * 0.6) + (normalizedEngagementB * 0.4);
-          
-          return combinedScoreB.compareTo(combinedScoreA);
+          final scoreA = (a['relevanceScore'] as num).toDouble();
+          final scoreB = (b['relevanceScore'] as num).toDouble();
+          return scoreB.compareTo(scoreA);
         });
         
+        // Take top 3 videos
         final topVideos = videos.take(3).toList();
-        print('✅ Selected ${topVideos.length} high-quality, relevant videos in $language for: $topic');
+        print('✅ Selected ${topVideos.length} personalized video recommendations for: $topic');
         if (topVideos.isNotEmpty) {
-          print('   Top video: "${topVideos[0]['title']}" (Relevance: ${topVideos[0]['relevanceScore'].toStringAsFixed(1)}%)');
+          print('   Top video: "${topVideos[0]['title']}" (Score: ${topVideos[0]['relevanceScore'].toStringAsFixed(1)}%)');
+          print('   Verdict: ${topVideos[0]['verdict']}');
         }
         
         return topVideos;
-      } else if (searchResponse.statusCode == 403) {
-        // API quota exceeded or permission issue
-        print('❌ YouTube API Error 403: Quota exceeded or permission denied');
-        print('💡 Possible reasons:');
-        print('   1. Daily API quota exceeded (10,000 units/day for free tier)');
-        print('   2. API key needs YouTube Data API v3 enabled');
-        print('   3. API key has restrictions (check Google Cloud Console)');
-        print('🔧 Solutions:');
-        print('   - Wait 24 hours for quota reset');
-        print('   - Enable YouTube Data API v3 in Google Cloud Console');
-        print('   - Check API key restrictions');
-        print('   - Get a new API key if needed');
+      } else if (response.statusCode == 403 || response.statusCode == 429) {
+        print('❌ API Error ${response.statusCode}: Rate limit or permission issue');
+        print('💡 The video recommendation API may be rate limited');
+        print('🔧 Solution: Wait a few moments and try again');
         return [];
       } else {
-        print('⚠️ YouTube API error: ${searchResponse.statusCode}');
-        if (searchResponse.statusCode != 403) {
-          print('   Response: ${searchResponse.body.substring(0, searchResponse.body.length > 200 ? 200 : searchResponse.body.length)}');
-        }
+        print('⚠️ Video recommendation API error: ${response.statusCode}');
+        print('   Response: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
         return [];
       }
     } catch (e) {
-      print('❌ Error searching YouTube: $e');
+      print('❌ Error searching videos: $e');
       return [];
+    }
+  }
+
+  /// Extract YouTube video ID from various URL formats
+  static String? _extractVideoId(String url) {
+    try {
+      // Handle youtube.com/watch?v=VIDEO_ID
+      if (url.contains('youtube.com/watch?v=')) {
+        final uri = Uri.parse(url);
+        return uri.queryParameters['v'];
+      }
+      
+      // Handle youtu.be/VIDEO_ID
+      if (url.contains('youtu.be/')) {
+        return url.split('youtu.be/').last.split('?').first.split('&').first;
+      }
+      
+      // Handle youtube.com/embed/VIDEO_ID
+      if (url.contains('youtube.com/embed/')) {
+        return url.split('youtube.com/embed/').last.split('?').first.split('&').first;
+      }
+      
+      // If already a video ID (11 characters, alphanumeric)
+      if (url.length == 11 && RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(url)) {
+        return url;
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Error extracting video ID from: $url');
+      return null;
     }
   }
 
