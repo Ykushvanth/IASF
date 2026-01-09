@@ -149,7 +149,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                     CircleAvatar(
                                       backgroundColor: const Color(0xFF6366F1),
                                       child: Text(
-                                        widget.channelName[0].toUpperCase(),
+                                        widget.channelName.isNotEmpty ? widget.channelName[0].toUpperCase() : 'V',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
@@ -358,7 +358,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         radius: 12,
                         backgroundColor: const Color(0xFF6366F1),
                         child: Text(
-                          (video['channelName'] ?? 'U')[0].toUpperCase(),
+                          () {
+                            final name = video['channelName'] ?? '';
+                            return name.isNotEmpty ? name[0].toUpperCase() : 'V';
+                          }(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,

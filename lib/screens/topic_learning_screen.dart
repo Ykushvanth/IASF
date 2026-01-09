@@ -143,9 +143,156 @@ class _TopicLearningScreenState extends State<TopicLearningScreen>
             context: context,
             video: video,
             relatedVideos: widget.videos,
+            onVideoClosed: () => _showAfterVideoOptions(),
           );
         }),
       ],
+    );
+  }
+
+  void _showAfterSummaryOptions() {
+    _showAfterVideoOptions(); // Use the same dialog for both
+  }
+
+  void _showAfterVideoOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Video Watched!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Continue your learning journey:',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildOptionButton(
+              icon: Icons.article,
+              title: 'Cheat Sheet',
+              subtitle: 'Quick reference guide',
+              color: const Color(0xFF6366F1),
+              onTap: () {
+                Navigator.pop(context);
+                _tabController.animateTo(2); // Cheat Sheet tab
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildOptionButton(
+              icon: Icons.quiz,
+              title: 'Practice',
+              subtitle: 'Solve practice problems',
+              color: const Color(0xFFF59E0B),
+              onTap: () {
+                Navigator.pop(context);
+                _tabController.animateTo(3); // Practice tab
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildOptionButton(
+              icon: Icons.assignment,
+              title: 'Test',
+              subtitle: 'Take assessment test',
+              color: const Color(0xFF10B981),
+              onTap: () {
+                Navigator.pop(context);
+                _tabController.animateTo(4); // Test tab
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: color, size: 16),
+          ],
+        ),
+      ),
     );
   }
 
@@ -155,6 +302,7 @@ class _TopicLearningScreenState extends State<TopicLearningScreen>
       topicName: widget.topicName,
       difficulty: widget.difficulty,
       videos: widget.videos,
+      onSummaryGenerated: () => _showAfterSummaryOptions(),
     );
   }
 

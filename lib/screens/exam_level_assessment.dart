@@ -266,8 +266,8 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
               ),
               const SizedBox(height: 24),
               
-              // Options
-              ...(question['options'] as List<String>).asMap().entries.map((entry) {
+              // Options - Convert List<dynamic> to List<String> safely
+              ...(List<String>.from(question['options'] ?? [])).asMap().entries.map((entry) {
                 final index = entry.key;
                 final option = entry.value;
                 final optionLabel = String.fromCharCode(65 + index); // A, B, C, D
@@ -547,7 +547,7 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              ...(question['options'] as List<String>).map((option) {
+              ...(List<String>.from(question['options'] ?? [])).map((option) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: InkWell(
@@ -612,17 +612,19 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
           children: [
             if (_isAnswerCorrect)
               Lottie.asset(
-                'assets/animations/correct.json',
+                'assets/animations/Done _ Correct _ Tick.json',
                 width: 200,
                 height: 200,
                 repeat: false,
+                fit: BoxFit.contain,
               )
             else
               Lottie.asset(
-                'assets/animations/wrong.json',
+                'assets/animations/Error Animation.json',
                 width: 200,
                 height: 200,
                 repeat: false,
+                fit: BoxFit.contain,
               ),
             const SizedBox(height: 24),
             Text(
@@ -1002,12 +1004,17 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
       // Generate 10 AI-analyzed questions based on user's mindset profile
       final aiQuestions = await _generateAIQuestions();
       
+      print('📊 Generated ${aiQuestions.length} questions');
+      
       setState(() {
         _assessmentQuestions = aiQuestions.take(10).toList();
+        _currentQuestionIndex = 0; // Reset to first question
         _isLoading = false;
       });
+      
+      print('✅ Assessment initialized with ${_assessmentQuestions.length} questions');
     } catch (e) {
-      print('Error initializing assessment: $e');
+      print('❌ Error initializing assessment: $e');
       setState(() {
         _isLoading = false;
       });
@@ -1029,47 +1036,74 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
       final allTopics = _examTopics[widget.courseName] ?? [];
       
       if (allTopics.isEmpty) {
+        print('⚠️ No topics found, using fallback questions');
         return _getFallbackAIQuestions();
       }
 
+      print('🔄 Generating questions for ${allTopics.length} topics');
       final result = await LevelAssessmentBackend.generateQuestions(
         courseName: widget.courseName,
         selectedTopics: allTopics.take(5).toList(), // Use first 5 topics
         mindsetProfile: _mindsetProfile, // Pass user's mindset profile for personalized assessment
       );
 
-      if (result['success']) {
-        final questions = List<Map<String, dynamic>>.from(result['questions']);
-        // Mark as AI-generated
-        for (var q in questions) {
-          q['isStatic'] = false;
+      if (result['success'] == true) {
+        final questions = List<Map<String, dynamic>>.from(result['questions'] ?? []);
+        print('✅ Received ${questions.length} questions from API');
+        
+        // Ensure we have at least 10 questions
+        if (questions.length >= 10) {
+          // Mark as AI-generated
+          for (var q in questions) {
+            q['isStatic'] = false;
+          }
+          return questions.take(10).toList(); // Return exactly 10 questions
+        } else {
+          print('⚠️ Only ${questions.length} questions received, using fallback for remaining');
+          // Combine API questions with fallback to reach 10
+          final fallback = _getFallbackAIQuestions();
+          final combined = <Map<String, dynamic>>[];
+          combined.addAll(questions);
+          combined.addAll(fallback.skip(questions.length).take(10 - questions.length));
+          
+          for (var q in combined) {
+            q['isStatic'] = false;
+          }
+          return combined.take(10).toList();
         }
-        return questions;
+      } else {
+        print('⚠️ API returned success=false, using fallback');
       }
     } catch (e) {
-      print('Error generating AI questions: $e');
+      print('❌ Error generating AI questions: $e');
     }
     
+    print('🔄 Using fallback questions');
     return _getFallbackAIQuestions();
   }
 
   List<Map<String, dynamic>> _getFallbackAIQuestions() {
-    return [
-      {
-        'id': 'ai_1',
-        'question': 'What study technique works best for complex topics?',
+    // Generate 10 fallback questions if AI fails
+    final topics = _examTopics[widget.courseName] ?? ['General Knowledge'];
+    final topicList = topics.length >= 10 ? topics : List.generate(10, (i) => topics[i % topics.length]);
+    
+    return List.generate(10, (index) {
+      final topic = topicList[index];
+      return {
+        'id': 'fallback_${index + 1}',
+        'question': 'Question ${index + 1}: What is a fundamental concept in $topic?',
         'options': [
-          'Breaking down into smaller parts',
-          'Memorizing everything',
-          'Reading multiple times',
-          'Watching videos only'
+          'Option A - Core principle',
+          'Option B - Advanced theory',
+          'Option C - Intermediate concept',
+          'Option D - Basic definition'
         ],
-        'correctAnswer': 'Breaking down into smaller parts',
-        'topic': 'Study Methods',
-        'difficulty': 'medium',
+        'correctAnswer': 'Option A - Core principle',
+        'topic': topic,
+        'difficulty': index < 3 ? 'easy' : (index < 7 ? 'medium' : 'hard'),
         'isStatic': false,
-      },
-    ];
+      };
+    });
   }
 
   void _handleAnswerSelection(String questionId, String selectedAnswer, String correctAnswer) {

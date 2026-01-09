@@ -10,6 +10,7 @@ class SummarizeScreen extends StatefulWidget {
   final String topicName;
   final String difficulty;
   final List<Map<String, dynamic>>? videos;
+  final VoidCallback? onSummaryGenerated;
 
   const SummarizeScreen({
     super.key,
@@ -17,6 +18,7 @@ class SummarizeScreen extends StatefulWidget {
     required this.topicName,
     required this.difficulty,
     this.videos,
+    this.onSummaryGenerated,
   });
 
   @override
@@ -81,6 +83,12 @@ class _SummarizeScreenState extends State<SummarizeScreen> {
           _summary = result['summary'] as String?;
           _isLoading = false;
         });
+        // Call callback after summary is generated
+        if (widget.onSummaryGenerated != null) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            widget.onSummaryGenerated!();
+          });
+        }
       } else {
         setState(() {
           _errorMessage = result['message'] as String? ?? 'Failed to generate summary';
@@ -110,6 +118,11 @@ class _SummarizeScreenState extends State<SummarizeScreen> {
           .doc(docId)
           .delete();
     }
+
+    // Clear summary to force regeneration
+    setState(() {
+      _summary = null;
+    });
 
     await _loadSummary();
   }

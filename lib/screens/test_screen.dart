@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eduai/models/test_backend.dart';
+import 'package:eduai/models/gamification_backend.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -135,6 +136,11 @@ class _TestScreenState extends State<TestScreen> {
       );
 
       if (result['success'] == true) {
+        // Track test completion for gamification
+        final score = result['score'] as int? ?? 0;
+        final total = result['total'] as int? ?? 0;
+        await GamificationBackend.updateTestActivity(score, total);
+        
         setState(() {
           _testResults = result;
           _testCompleted = true;

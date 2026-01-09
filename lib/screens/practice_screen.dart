@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eduai/models/practice_backend.dart';
+import 'package:eduai/models/gamification_backend.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -26,6 +27,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   String? _errorMessage;
   Map<int, String?> _userAnswers = {};
   Map<int, bool> _showExplanation = {};
+  Map<int, bool> _isLoadingHelp = {};
+  Map<int, String?> _aiTutorHelp = {};
 
   @override
   void initState() {
@@ -93,6 +96,95 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _userAnswers[index] = answer;
       _showExplanation[index] = true;
     });
+    
+    // Track practice activity for gamification
+    GamificationBackend.updatePracticeActivity(1);
+  }
+
+  Future<void> _getAITutorHelp(int index) async {
+    if (_problems == null || index >= _problems!.length) return;
+    
+    setState(() {
+      _isLoadingHelp[index] = true;
+      _aiTutorHelp[index] = null;
+    });
+
+    try {
+      final problem = _problems![index];
+      final userAnswer = _userAnswers[index];
+      
+      final result = await PracticeBackend.getAITutorHelp(
+        problem: problem,
+        topicName: widget.topicName,
+        courseName: widget.courseName,
+        userAnswer: userAnswer,
+      );
+
+      if (result['success'] == true && mounted) {
+        setState(() {
+          _aiTutorHelp[index] = result['help'] as String?;
+          _isLoadingHelp[index] = false;
+        });
+        
+        // Show AI tutor dialog
+        _showAITutorDialog(index, result['help'] as String);
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingHelp[index] = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to get AI tutor help'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingHelp[index] = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showAITutorDialog(int index, String help) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.school, color: const Color(0xFF6366F1)),
+            const SizedBox(width: 8),
+            const Text('AI Tutor Help'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            help,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.6,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it!'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -312,13 +404,66 @@ class _PracticeScreenState extends State<PracticeScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  problem['question'] ?? 'No question',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1E293B),
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        problem['question'] ?? 'No question',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // AI Tutor Help Button
+                    InkWell(
+                      onTap: userAnswer == null ? () => _getAITutorHelp(index) : null,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (_isLoadingHelp[index] ?? false) 
+                              ? Colors.grey[300]
+                              : const Color(0xFF6366F1).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: (_isLoadingHelp[index] ?? false)
+                                ? Colors.grey[400]!
+                                : const Color(0xFF6366F1),
+                            width: 1,
+                          ),
+                        ),
+                        child: (_isLoadingHelp[index] ?? false)
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.school,
+                                    size: 16,
+                                    color: Color(0xFF6366F1),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Help',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF6366F1),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 // Multiple choice questions
