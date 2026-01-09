@@ -39,34 +39,74 @@ class SignUpBackend {
       await userCredential.user?.updateDisplayName(fullName);
 
       print('✅ Firebase Auth user created: ${userCredential.user!.uid}');
+      
+      // Reload user to ensure auth token is fresh
+      await userCredential.user?.reload();
+      final currentUser = _auth.currentUser;
+      
+      if (currentUser == null) {
+        throw Exception('User authentication failed after creation');
+      }
+      
+      // Get fresh ID token to ensure Firestore recognizes the auth
+      await currentUser.getIdToken(true);
+      
       print('📝 Creating Firestore user document...');
+      print('🔐 Current auth user: ${currentUser.uid}');
 
       try {
-        // Save user data to Firestore with all required fields
-        await _firestore.collection('users').doc(userCredential.user!.uid).set({
-          'fullName': fullName,
-          'emailOrPhone': emailOrPhone,
-          'isEmail': isEmail,
-          'preferredLanguage': preferredLanguage,
-          'createdAt': FieldValue.serverTimestamp(),
-          'academicContextCompleted': false,
-          'mindsetAnalysisCompleted': false,
-          // Initialize empty data structures
-          'academicContext': {},
-          'mindsetAnswers': {},
-          'courseAnswers': {},
-          'selectedCourse': null,
-          'roadmap': [],
-          'teacherNote': '',
-          'studyTips': [],
-        });
-
-        print('✅ Firestore user document created successfully!');
-        print('📊 User ID: ${userCredential.user!.uid}');
+        // Retry mechanism for Firestore write (in case of auth token propagation delay)
+        int retries = 3;
+        bool success = false;
+        Exception? lastError;
+        
+        while (retries > 0 && !success) {
+          try {
+            // Save user data to Firestore with all required fields
+            await _firestore.collection('users').doc(currentUser.uid).set({
+              'fullName': fullName,
+              'emailOrPhone': emailOrPhone,
+              'isEmail': isEmail,
+              'preferredLanguage': preferredLanguage,
+              'createdAt': FieldValue.serverTimestamp(),
+              'academicContextCompleted': false,
+              'mindsetAnalysisCompleted': false,
+              // Initialize empty data structures
+              'academicContext': {},
+              'mindsetAnswers': {},
+              'courseAnswers': {},
+              'selectedCourse': null,
+              'roadmap': [],
+              'teacherNote': '',
+              'studyTips': [],
+            });
+            success = true;
+            print('✅ Firestore user document created successfully!');
+            print('📊 User ID: ${currentUser.uid}');
+          } catch (e) {
+            lastError = e is Exception ? e : Exception(e.toString());
+            retries--;
+            if (retries > 0) {
+              print('⚠️ Firestore write failed, retrying... (${3 - retries}/3)');
+              // Refresh token before retry
+              await currentUser.getIdToken(true);
+              await Future.delayed(const Duration(milliseconds: 500));
+            } else {
+              print('❌ Firestore error after all retries: $lastError');
+            }
+          }
+        }
+        
+        if (!success) {
+          // Delete the auth user if Firestore fails
+          await userCredential.user?.delete();
+          throw lastError ?? Exception('Failed to create Firestore document after retries');
+        }
         
         // Verify the document was created
-        final verifyDoc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+        final verifyDoc = await _firestore.collection('users').doc(currentUser.uid).get();
         if (!verifyDoc.exists) {
+          await userCredential.user?.delete();
           throw Exception('Firestore document creation verification failed');
         }
         print('✅ Firestore document verified!');
@@ -80,7 +120,7 @@ class SignUpBackend {
       return {
         'success': true,
         'message': 'Account created successfully',
-        'userId': userCredential.user!.uid,
+        'userId': currentUser.uid,
       };
     } on FirebaseAuthException catch (e) {
       String message;

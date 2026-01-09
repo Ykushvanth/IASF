@@ -266,8 +266,8 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
               ),
               const SizedBox(height: 24),
               
-              // Options
-              ...(question['options'] as List<String>).asMap().entries.map((entry) {
+              // Options - Convert List<dynamic> to List<String> safely
+              ...(List<String>.from(question['options'] ?? [])).asMap().entries.map((entry) {
                 final index = entry.key;
                 final option = entry.value;
                 final optionLabel = String.fromCharCode(65 + index); // A, B, C, D
@@ -547,7 +547,7 @@ class _ExamLevelAssessmentScreenState extends State<ExamLevelAssessmentScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              ...(question['options'] as List<String>).map((option) {
+              ...(List<String>.from(question['options'] ?? [])).map((option) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: InkWell(

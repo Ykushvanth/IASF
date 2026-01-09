@@ -16,8 +16,8 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
   final Map<String, dynamic> _answers = {};
   final TextEditingController _openEndedController = TextEditingController();
   
-  // Total number of questions (26 questions now)
-  final int _totalQuestions = 26;
+  // Total number of questions (25 questions - Q1 and Q2 combined into one)
+  final int _totalQuestions = 25;
 
   @override
   void dispose() {
@@ -436,114 +436,117 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
     return [
       // A. Study Reality & Time Investment
       _buildSingleChoiceQuestion(1, 'A. Study Reality & Time Investment', 
-        'How many hours do you actually study per day on average?',
-        ['Less than 1 hour', '1–2 hours', '2–4 hours', 'More than 4 hours'], 'q1'),
+        'How many hours do you study per day and how consistent is your routine?',
+        [
+          'Less than 1 hour - Very inconsistent',
+          '1–2 hours - Somewhat inconsistent', 
+          '2–4 hours - Mostly consistent',
+          'More than 4 hours - Very consistent'
+        ], 'q1'),
       
-      _buildSingleChoiceQuestion(2, 'A. Study Reality & Time Investment',
-        'How consistent is your study routine across the week?',
-        ['Very inconsistent', 'Somewhat inconsistent', 'Mostly consistent', 'Very consistent'], 'q2'),
+      // Note: Q2 removed - study time and consistency combined into Q1
       
       // B. Clarity & Direction
-      _buildSingleChoiceQuestion(3, 'B. Clarity & Direction',
+      _buildSingleChoiceQuestion(2, 'B. Clarity & Direction',
         'When you sit down to study, how clear are you about what to study next?',
         ['Very clear', 'Somewhat clear', 'Often confused', 'Completely confused'], 'q3'),
       
-      _buildMultipleChoiceQuestion(4, 'B. Clarity & Direction',
+      _buildMultipleChoiceQuestion(3, 'B. Clarity & Direction',
         'What usually makes you feel confused while planning what to study?',
         ['Too many resources', 'No clear roadmap', 'Conflicting advice', 'Fear of choosing the wrong topic', 'Too much syllabus'], 'q4'),
       
-      _buildSingleChoiceQuestion(5, 'B. Clarity & Direction',
+      _buildSingleChoiceQuestion(4, 'B. Clarity & Direction',
         'How often do you later feel you studied the wrong topic or wasted time?',
         ['Rarely', 'Sometimes', 'Often', 'Almost always'], 'q5'),
       
       // C. Retention & Forgetting
-      _buildSingleChoiceQuestion(6, 'C. Retention & Forgetting',
+      _buildSingleChoiceQuestion(5, 'C. Retention & Forgetting',
         'How often do you forget topics you studied earlier?',
         ['Rarely', 'Sometimes', 'Often', 'Almost always'], 'q6'),
       
-      _buildSingleChoiceQuestion(7, 'C. Retention & Forgetting',
+      _buildSingleChoiceQuestion(6, 'C. Retention & Forgetting',
         'When do you usually realize you\'ve forgotten something important?',
         ['During revision', 'During practice questions', 'During mock tests', 'In the main exam', 'When someone asks me'], 'q7'),
       
-      _buildSingleChoiceQuestion(8, 'C. Retention & Forgetting',
+      _buildSingleChoiceQuestion(7, 'C. Retention & Forgetting',
         'What frustrates you the most when you forget something?',
         ['Forgetting formulas', 'Forgetting concepts', 'Knowing the concept but unable to apply it', 'Making silly mistakes'], 'q8'),
       
       // D. Practice & Application
-      _buildSingleChoiceQuestion(9, 'D. Practice & Application',
+      _buildSingleChoiceQuestion(8, 'D. Practice & Application',
         'Do you regularly practice questions while studying?',
         ['Yes, regularly', 'Sometimes', 'Rarely', 'Almost never'], 'q9'),
       
-      _buildSingleChoiceQuestion(10, 'D. Practice & Application',
+      _buildSingleChoiceQuestion(9, 'D. Practice & Application',
         'When you practice questions, what usually happens?',
         ['I solve most correctly', 'I understand solutions but can\'t solve independently', 'I struggle and feel stuck', 'I avoid practice altogether'], 'q10'),
       
       // E. Exam Emotions & Anxiety
-      _buildSingleChoiceQuestion(11, 'E. Exam Emotions & Anxiety',
+      _buildSingleChoiceQuestion(10, 'E. Exam Emotions & Anxiety',
         'Before an important test or exam, what do you feel most?',
         ['Fear', 'Self-doubt', 'Panic', 'Motivation drop', 'Calm confidence'], 'q11'),
       
-      _buildMultipleChoiceQuestion(12, 'E. Exam Emotions & Anxiety',
+      _buildMultipleChoiceQuestion(11, 'E. Exam Emotions & Anxiety',
         'Even when you feel confident before a test, what still goes wrong?',
         ['Careless mistakes', 'Time management issues', 'Overthinking', 'Underestimating difficulty', 'Blanking out during the exam'], 'q12'),
       
       // F. Confidence & Recovery
-      _buildSingleChoiceQuestion(13, 'F. Confidence & Recovery',
+      _buildSingleChoiceQuestion(12, 'F. Confidence & Recovery',
         'How confident are you with the core topics right now?',
         ['Very low', 'Low', 'Moderate', 'High', 'Very high'], 'q13'),
       
-      _buildSingleChoiceQuestion(14, 'F. Confidence & Recovery',
+      _buildSingleChoiceQuestion(13, 'F. Confidence & Recovery',
         'After doing poorly in a test or study session, what usually happens?',
         ['I lose motivation for days', 'I struggle but continue', 'I recover after some time', 'I quickly adjust and continue', 'It motivates me to work harder'], 'q14'),
       
-      _buildSingleChoiceQuestion(15, 'F. Confidence & Recovery',
+      _buildSingleChoiceQuestion(14, 'F. Confidence & Recovery',
         'After doing well in a test or mastering a topic, what usually happens next?',
         ['Reduce effort', 'Maintain consistency', 'Become overconfident', 'Become inconsistent', 'Push harder'], 'q15'),
       
       // G. Focus, Fatigue & Mental State
-      _buildSingleChoiceQuestion(16, 'G. Focus, Fatigue & Mental State',
+      _buildSingleChoiceQuestion(15, 'G. Focus, Fatigue & Mental State',
         'During long study sessions, what do you experience most often?',
         ['Stress', 'Boredom', 'Confusion', 'Fatigue', 'Motivation swings'], 'q16'),
       
-      _buildSingleChoiceQuestion(17, 'G. Focus, Fatigue & Mental State',
+      _buildSingleChoiceQuestion(16, 'G. Focus, Fatigue & Mental State',
         'When you feel bored, distracted, or mentally tired, what do you usually do?',
         ['Switch topics', 'Take a short break', 'Scroll social media', 'Stop studying for the day', 'Force myself to continue'], 'q17'),
       
       // H. Learning Behaviour & Habits
-      _buildMultipleChoiceQuestion(18, 'H. Learning Behaviour & Habits',
+      _buildMultipleChoiceQuestion(17, 'H. Learning Behaviour & Habits',
         'Which of these do you do regularly while studying?',
         ['Read theory', 'Take notes', 'Practice problems', 'Revise within 48 hours', 'Teach or explain to someone'], 'q18'),
       
-      _buildSingleChoiceQuestion(19, 'H. Learning Behaviour & Habits',
+      _buildSingleChoiceQuestion(18, 'H. Learning Behaviour & Habits',
         'How often do you revise topics after first studying them?',
         ['Rarely', 'Occasionally', 'Regularly', 'Very systematically'], 'q19'),
       
-      _buildSingleChoiceQuestion(20, 'H. Learning Behaviour & Habits',
+      _buildSingleChoiceQuestion(19, 'H. Learning Behaviour & Habits',
         'How planned are your study sessions usually?',
         ['Completely unplanned', 'Rough idea only', 'Moderately planned', 'Well planned'], 'q20'),
       
       // I. Motivation & Obstacles
-      _buildSingleChoiceQuestion(21, 'I. Motivation & Obstacles',
+      _buildSingleChoiceQuestion(20, 'I. Motivation & Obstacles',
         'What keeps you studying when motivation is low?',
         ['Habit / routine', 'Fear of exams', 'Long-term goals', 'Support from others', 'Nothing really helps'], 'q21'),
       
-      _buildSingleChoiceQuestion(22, 'I. Motivation & Obstacles',
+      _buildSingleChoiceQuestion(21, 'I. Motivation & Obstacles',
         'What is the biggest obstacle to your learning right now?',
         ['Lack of time', 'Low motivation', 'Distractions', 'No clear plan', 'Poor guidance/resources'], 'q22'),
       
       // J. Reflection
-      _buildTextQuestion(23, 'J. Reflection',
+      _buildTextQuestion(22, 'J. Reflection',
         'Describe one specific moment in the last 7 days when you felt your learning was going wrong.', 'q23'),
       
-      _buildSingleChoiceQuestion(24, 'J. Reflection',
+      _buildSingleChoiceQuestion(23, 'J. Reflection',
         'If your learning improved by just 20%, what would help you the most?',
         ['Clear roadmap', 'Better practice', 'More revision', 'Confidence building', 'Better time management'], 'q24'),
       
-      _buildSingleChoiceQuestion(25, 'J. Reflection',
+      _buildSingleChoiceQuestion(24, 'J. Reflection',
         'Overall, how satisfied are you with how you are studying right now?',
         ['Very dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very satisfied'], 'q25'),
       
-      _buildTextQuestion(26, 'J. Reflection',
+      _buildTextQuestion(25, 'J. Reflection',
         'What is one specific thing you want to improve about your learning in the next 30 days?', 'q26'),
     ];
   }
