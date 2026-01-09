@@ -68,7 +68,7 @@ class StudyGroupBackend {
             'name': userName,
             'level': userLevel ?? 'Not assessed',
             'role': 'admin',
-            'joinedAt': Timestamp.now(),
+            'joinedAt': Timestamp.now(), // Use Timestamp.now() for nested fields
             'points': 0,
           },
         ],
@@ -265,7 +265,7 @@ class StudyGroupBackend {
         'topic': topic,
         'startedBy': user.uid,
         'starterName': userName,
-        'startTime': FieldValue.serverTimestamp(),
+        'startTime': Timestamp.now(), // Use Timestamp.now() for nested fields
         'plannedDuration': durationMinutes,
         'participants': [user.uid],
         'isActive': true,
@@ -904,13 +904,13 @@ class StudyGroupBackend {
       final sessionData = {
         'startedBy': user.uid,
         'starterName': userName,
-        'startTime': FieldValue.serverTimestamp(),
+        'startTime': Timestamp.now(),
         'participants': [
           {
             'userId': user.uid,
             'name': userName,
             'topic': currentTopic,
-            'joinedAt': FieldValue.serverTimestamp(),
+            'joinedAt': Timestamp.now(), // Use Timestamp.now() for nested fields in arrays
           },
         ],
         'isActive': true,
@@ -995,7 +995,7 @@ class StudyGroupBackend {
                 'userId': user.uid,
                 'name': userName,
                 'topic': currentTopic,
-                'joinedAt': FieldValue.serverTimestamp(),
+                'joinedAt': Timestamp.now(), // Use Timestamp.now() for nested fields in arrays
               },
             ]),
             'participantCount': FieldValue.increment(1),

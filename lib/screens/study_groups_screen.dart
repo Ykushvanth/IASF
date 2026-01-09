@@ -12,21 +12,18 @@ class StudyGroupsScreen extends StatefulWidget {
   State<StudyGroupsScreen> createState() => _StudyGroupsScreenState();
 }
 
-class _StudyGroupsScreenState extends State<StudyGroupsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _StudyGroupsScreenState extends State<StudyGroupsScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    // Removed discover tab - only showing My Groups now
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -56,16 +53,6 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
             onPressed: _showJoinGroupDialog,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'My Groups'),
-            Tab(text: 'Discover'),
-          ],
-        ),
       ),
       body: Column(
         children: [
@@ -79,7 +66,7 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
                 setState(() => _searchQuery = value.toLowerCase());
               },
               decoration: InputDecoration(
-                hintText: 'Search groups by name or subject...',
+                hintText: 'Search your groups by name or subject...',
                 prefixIcon: const Icon(Icons.search, color: Color(0xFF6366F1)),
                 filled: true,
                 fillColor: const Color(0xFFF1F5F9),
@@ -92,10 +79,7 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildMyGroupsTab(), _buildDiscoverTab()],
-            ),
+            child: _buildMyGroupsTab(),
           ),
         ],
       ),
@@ -191,68 +175,6 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
                 return _buildGroupCard(groupDoc.id, groupData);
               },
             );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildDiscoverTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('study_groups')
-          .where('isActive', isEqualTo: true)
-          .orderBy('memberCount', descending: false)
-          .limit(50)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState(
-            icon: Icons.explore,
-            title: 'No Groups Available',
-            message: 'Be the first to create a study group!',
-            actionLabel: 'Create Group',
-            onAction: _showCreateGroupDialog,
-          );
-        }
-
-        final user = FirebaseAuth.instance.currentUser;
-        final groups = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final members = data['members'] as List? ?? [];
-          final isAlreadyMember = members.any((m) => m['userId'] == user?.uid);
-
-          if (isAlreadyMember) return false;
-
-          final groupName = (data['groupName'] ?? '').toString().toLowerCase();
-          final subject = (data['subject'] ?? '').toString().toLowerCase();
-          return _searchQuery.isEmpty ||
-              groupName.contains(_searchQuery) ||
-              subject.contains(_searchQuery);
-        }).toList();
-
-        if (groups.isEmpty) {
-          return Center(
-            child: Text(
-              _searchQuery.isEmpty
-                  ? 'You\'re already in all available groups!'
-                  : 'No groups match "$_searchQuery"',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: groups.length,
-          itemBuilder: (context, index) {
-            final groupDoc = groups[index];
-            final groupData = groupDoc.data() as Map<String, dynamic>;
-            return _buildDiscoverGroupCard(groupDoc.id, groupData);
           },
         );
       },
@@ -396,160 +318,6 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDiscoverGroupCard(
-    String groupId,
-    Map<String, dynamic> groupData,
-  ) {
-    final memberCount = groupData['memberCount'] ?? 0;
-    final maxMembers = groupData['maxMembers'] ?? 20;
-    final subject = groupData['subject'] ?? '';
-    final groupName = groupData['groupName'] ?? '';
-    final description = groupData['description'] ?? '';
-    final isFull = memberCount >= maxMembers;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.groups, color: Color(0xFF6366F1)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        groupName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6366F1).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          subject,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF6366F1),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  height: 1.4,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildInfoChip(
-                  Icons.people,
-                  '$memberCount/$maxMembers',
-                  isFull ? Colors.orange : Colors.blue,
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: isFull
-                      ? null
-                      : () async {
-                          final groupCode = groupData['groupCode'] ?? '';
-                          final result = await StudyGroupBackend.joinGroup(
-                            groupCode: groupCode,
-                          );
-
-                          if (!mounted) return;
-
-                          if (result['success'] ?? false) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  result['message'] ?? 'Joined successfully',
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            if (mounted) _tabController.animateTo(0);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  result['message'] ?? 'Failed to join',
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                  icon: Icon(
-                    isFull ? Icons.block : Icons.login,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  label: Text(
-                    isFull ? 'Full' : 'Join',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isFull
-                        ? Colors.grey
-                        : const Color(0xFF6366F1),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );
@@ -876,7 +644,6 @@ class _StudyGroupsScreenState extends State<StudyGroupsScreen>
                       backgroundColor: Colors.green,
                     ),
                   );
-                  if (mounted) _tabController.animateTo(0);
                 } else {
                   ScaffoldMessenger.of(mainContext).showSnackBar(
                     SnackBar(

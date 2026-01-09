@@ -202,5 +202,116 @@ Generate the practice problems now:''';
       };
     }
   }
+
+  /// Get AI tutor help for a specific problem when student is stuck
+  static Future<Map<String, dynamic>> getAITutorHelp({
+    required Map<String, dynamic> problem,
+    required String topicName,
+    required String courseName,
+    String? userAnswer,
+  }) async {
+    print('🤖 Getting AI tutor help for practice problem...');
+    
+    try {
+      final apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
+      
+      if (apiKey.isEmpty) {
+        return {
+          'success': false,
+          'message': 'API key not configured',
+        };
+      }
+
+      final question = problem['question'] ?? '';
+      final correctAnswer = problem['correctAnswer'] ?? '';
+      final explanation = problem['explanation'] ?? '';
+      
+      final userAnswerText = userAnswer != null 
+          ? '**Student Answer:** $userAnswer\n'
+          : '';
+      
+      final taskText = userAnswer != null
+          ? 'The student attempted: "$userAnswer" but it is not correct. Help them understand:\n1. What might have gone wrong in their thinking\n2. Provide a hint or clue (do not give away the full answer)\n3. Guide them step-by-step toward the solution\n4. Be encouraging and supportive'
+          : 'The student is stuck on this problem. Provide:\n1. A helpful hint or clue (do not give away the full answer)\n2. Break down the problem into smaller steps\n3. Guide them to think through the approach\n4. Be encouraging and supportive';
+      
+      final prompt = '''You are a friendly and patient AI tutor helping a student solve a practice problem.
+
+**Problem:**
+$question
+
+**Course:** $courseName
+**Topic:** $topicName
+
+$userAnswerText**Correct Answer:** $correctAnswer
+**Explanation:** $explanation
+
+**Your Task:**
+$taskText
+
+**Important:**
+- Do not give away the answer directly - guide them to discover it
+- Use simple, clear language
+- Be encouraging and patient
+- Break down complex problems into smaller steps
+- Provide conceptual understanding, not just memorization
+
+Give a helpful, step-by-step guidance:''';
+
+      print('🤖 Calling Groq API for AI tutor help...');
+      
+      final requestBody = jsonEncode({
+        'model': 'llama-3.3-70b-versatile',
+        'messages': [
+          {
+            'role': 'system',
+            'content': 'You are a patient, encouraging AI tutor who helps students learn by guiding them, not by giving direct answers. Always be supportive and break problems into manageable steps.',
+          },
+          {
+            'role': 'user',
+            'content': prompt,
+          },
+        ],
+        'temperature': 0.8,
+        'max_tokens': 500,
+      });
+
+      final response = await http.post(
+        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+        body: requestBody,
+      ).timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          throw http.ClientException('Request timeout');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final content = jsonResponse['choices'][0]['message']['content'];
+        
+        print('✅ AI tutor help generated successfully');
+        return {
+          'success': true,
+          'help': content,
+        };
+      } else {
+        print('❌ API error: ${response.statusCode} - ${response.body}');
+        return {
+          'success': false,
+          'message': 'API error: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error getting AI tutor help: $e');
+      return {
+        'success': false,
+        'message': 'Error: ${e.toString()}',
+      };
+    }
+  }
 }
 

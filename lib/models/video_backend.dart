@@ -10,6 +10,7 @@ class VideoBackend {
     required String channelName,
     String? description,
     List<Map<String, dynamic>>? relatedVideos,
+    VoidCallback? onVideoClosed,
   }) {
     Navigator.push(
       context,
@@ -22,7 +23,12 @@ class VideoBackend {
           relatedVideos: relatedVideos,
         ),
       ),
-    );
+    ).then((_) {
+      // Show options after video is closed
+      if (onVideoClosed != null) {
+        onVideoClosed();
+      }
+    });
   }
 
   /// Extract video ID from various YouTube URL formats
@@ -71,6 +77,7 @@ class VideoBackend {
     required Map<String, dynamic> video,
     VoidCallback? onTap,
     List<Map<String, dynamic>>? relatedVideos,
+    VoidCallback? onVideoClosed,
   }) {
     final videoId = video['videoId'] as String? ?? '';
     final title = video['title'] as String? ?? 'Untitled Video';
@@ -88,6 +95,7 @@ class VideoBackend {
           channelName: channelName,
           description: description,
           relatedVideos: relatedVideos,
+          onVideoClosed: onVideoClosed,
         );
       },
       child: Container(
@@ -275,6 +283,7 @@ class VideoBackend {
     required Map<String, dynamic> video,
     VoidCallback? onTap,
     List<Map<String, dynamic>>? relatedVideos,
+    VoidCallback? onVideoClosed,
   }) {
     final videoId = video['videoId'] as String? ?? '';
     final title = video['title'] as String? ?? 'Untitled Video';
@@ -291,6 +300,7 @@ class VideoBackend {
           channelName: channelName,
           description: video['description'],
           relatedVideos: relatedVideos,
+          onVideoClosed: onVideoClosed,
         );
       },
       child: Container(

@@ -18,14 +18,36 @@ class RoadmapScreen extends StatefulWidget {
   State<RoadmapScreen> createState() => _RoadmapScreenState();
 }
 
-class _RoadmapScreenState extends State<RoadmapScreen> {
+class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProviderStateMixin {
   bool _isGeneratingWeek = false;
   List<Map<String, dynamic>> _roadmap = [];
+  late AnimationController _coinAnimationController;
+  late Animation<double> _coinPulseAnimation;
 
   @override
   void initState() {
     super.initState();
     _roadmap = widget.roadmap;
+    
+    // Animation for gold coin pulse effect
+    _coinAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+    
+    _coinPulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.15,
+    ).animate(CurvedAnimation(
+      parent: _coinAnimationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _coinAnimationController.dispose();
+    super.dispose();
   }
 
   Future<void> _generateNextWeek() async {
@@ -189,6 +211,7 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   widget.courseName.split('(')[0].trim(),
@@ -350,14 +373,73 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.white.withOpacity(0.3),
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-            minHeight: 8,
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: 40, // Add height to accommodate coin above progress bar
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.centerLeft,
+                children: [
+                  // Progress bar
+                  Positioned(
+                    top: 20, // Position progress bar below coin
+                    left: 0,
+                    right: 0,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white.withOpacity(0.3),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+                  // Gold coin at the end of progress - motivational reward (above the progress line)
+                  Positioned(
+                    left: (constraints.maxWidth - 20) * progress.clamp(0.0, 1.0),
+                    top: 0, // Position above the progress bar
+                    child: AnimatedBuilder(
+                      animation: _coinPulseAnimation,
+                      builder: (context, child) {
+                        return Transform.scale(
+                          scale: _coinPulseAnimation.value,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFFFD700),
+                                  Color(0xFFFFA500),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFFD700).withOpacity(0.6 * _coinPulseAnimation.value),
+                                  blurRadius: 10 * _coinPulseAnimation.value,
+                                  spreadRadius: 2 * _coinPulseAnimation.value,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.monetization_on,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -620,62 +702,99 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
                         ],
                       ),
                     ],
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _buildDifficultyBadge(difficulty),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.play_circle_outline,
-                              size: 14,
-                              color: videos.isEmpty ? Colors.grey : const Color(0xFF6366F1),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildDifficultyBadge(difficulty),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.play_circle_outline,
+                          size: 14,
+                          color: videos.isEmpty ? Colors.grey : const Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          videos.isEmpty ? 'Loading...' : '${videos.length} videos',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: videos.isEmpty ? Colors.grey : const Color(0xFF64748B),
+                            fontStyle: videos.isEmpty ? FontStyle.italic : FontStyle.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Progress indicators
+                    Row(
+                      children: [
+                        // Videos: 1 is enough (show completed if at least 1 video watched)
+                        _buildProgressChip(
+                          icon: Icons.videocam,
+                          label: 'Videos',
+                          value: (day['videosWatched'] ?? 0) >= 1 ? 1 : 0,
+                          total: 1,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(width: 8),
+                        // Practice: completed or not
+                        _buildProgressChip(
+                          icon: Icons.edit_note,
+                          label: 'Practice',
+                          value: day['practiceCompleted'] == true ? 1 : 0,
+                          total: 1,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        // Test: completed (if testScore exists) or not
+                        _buildProgressChip(
+                          icon: Icons.quiz,
+                          label: 'Test',
+                          value: testScore != null ? 1 : 0,
+                          total: 1,
+                          color: Colors.green,
+                        ),
+                      ],
+                    ),
+                    if (completed) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              videos.isEmpty ? 'Loading videos...' : '${videos.length} videos',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: videos.isEmpty ? Colors.grey : const Color(0xFF64748B),
-                                fontStyle: videos.isEmpty ? FontStyle.italic : FontStyle.normal,
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.3),
                               ),
                             ),
-                            if (completed) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 12,
+                                  color: Colors.green,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: Colors.green.withOpacity(0.3),
+                                const SizedBox(width: 4),
+                                Text(
+                                  testScore != null ? 'Test: $testScore%' : 'Completed',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
-                                      size: 12,
-                                      color: Colors.green,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      testScore != null ? 'Test: $testScore%' : 'Completed',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     // Show recommended channels if available
                     if (day['recommendedChannels'] != null && 
                         (day['recommendedChannels'] as List).isNotEmpty) ...[
@@ -761,6 +880,54 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
       default:
         return Colors.blue;
     }
+  }
+
+  Widget _buildProgressChip({
+    required IconData icon,
+    required String label,
+    required int value,
+    required int total,
+    required Color color,
+    bool isPercentage = false,
+  }) {
+    final bool isComplete = isPercentage ? value >= 70 : value >= total;
+    // For binary completion (1/1), show checkmark when complete, else show the label
+    final String displayValue = isComplete 
+        ? (isPercentage ? '$value%' : '') 
+        : (isPercentage ? '$value%' : '');
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isComplete ? color.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isComplete ? color.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isComplete ? Icons.check_circle : icon,
+            size: 12,
+            color: isComplete ? color : Colors.grey,
+          ),
+          if (displayValue.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Text(
+              displayValue,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isComplete ? color : Colors.grey,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
 }
