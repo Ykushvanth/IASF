@@ -16,8 +16,37 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
   final Map<String, dynamic> _answers = {};
   final TextEditingController _openEndedController = TextEditingController();
   
+  // Ordered answer keys (Q2 was removed, so keys are non-sequential)
+  final List<String> _questionKeys = const [
+    'q1',
+    'q3',
+    'q4',
+    'q5',
+    'q6',
+    'q7',
+    'q8',
+    'q9',
+    'q10',
+    'q11',
+    'q12',
+    'q13',
+    'q14',
+    'q15',
+    'q16',
+    'q17',
+    'q18',
+    'q19',
+    'q20',
+    'q21',
+    'q22',
+    'q23',
+    'q24',
+    'q25',
+    'q26',
+  ];
+  
   // Total number of questions (25 questions - Q1 and Q2 combined into one)
-  final int _totalQuestions = 25;
+  int get _totalQuestions => _questionKeys.length;
 
   @override
   void dispose() {
@@ -414,7 +443,7 @@ class _MindsetAnalysisScreenState extends State<MindsetAnalysisScreen> {
   }
 
   bool _canProceed() {
-    final currentKey = 'q${_currentPage + 1}';
+    final currentKey = _questionKeys[_currentPage];
     final answer = _answers[currentKey];
     
     if (answer == null) return false;

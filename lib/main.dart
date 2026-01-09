@@ -82,9 +82,22 @@ class AuthenticationWrapper extends StatelessWidget {
             }
 
             if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-              // User data doesn't exist, logout and go to signup
-              FirebaseAuth.instance.signOut();
-              return const SignUpScreen();
+              // User document not ready yet - show setup loader instead of forcing logout
+              return const Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Setting up your account...',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
 
             final userData = userSnapshot.data!.data() as Map<String, dynamic>;
